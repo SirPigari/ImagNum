@@ -1,0 +1,14 @@
+[package]
+name = "imag_num"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+once_cell = "1.21.3"
+
+[lib]
+path = "imagnum.rs"
+
+[[bin]]
+name = "tests"
+path = "tests.rs"
