@@ -496,6 +496,23 @@ impl Float {
         }
         self.exponent >= 0 && self.mantissa.chars().all(|c| c.is_digit(10)) && !self.mantissa.is_empty()
     }
+    pub fn to_int(&self) -> Result<Int, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+        if self.is_zero() {
+            return Ok(Int::new("0".to_string(), false, NumberKind::Finite));
+        }
+        if !self.is_integer_like() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+
+        let digits = normalize_int_digits(&self.mantissa);
+        Ok(Int::new(digits, self.negative, NumberKind::Finite))
+    }
 }
 
 fn normalize_int_digits(digits: &str) -> String {
@@ -602,5 +619,30 @@ impl Hash for Float {
         self.exponent.hash(state);
         self.negative.hash(state);
         self.kind.hash(state);
+    }
+}
+
+
+impl From<usize> for Int {
+    fn from(value: usize) -> Self {
+        create_int(&value.to_string())
+    }
+}
+
+impl From<isize> for Int {
+    fn from(value: isize) -> Self {
+        create_int(&value.to_string())
+    }
+}
+
+impl From<f32> for Float {
+    fn from(value: f32) -> Self {
+        create_float(&value.to_string())
+    }
+}
+
+impl From<i32> for Int {
+    fn from(value: i32) -> Self {
+        create_int(&value.to_string())
     }
 }
