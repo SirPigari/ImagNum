@@ -143,6 +143,27 @@ impl Int {
         let value: usize = self.digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
         Ok(value)
     }
+    pub fn to_i64(&self) -> Result<i64, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+        if self.negative || self.digits.is_empty() || self.digits == "0" {
+            return Err(ERR_NEGATIVE_RESULT);
+        }
+
+        let value: i64 = self.digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+        Ok(value)
+    }
+    pub fn from_i64(value: i64) -> Self {
+        if value < 0 {
+            Int::new(value.abs().to_string(), true, NumberKind::Finite)
+        } else {
+            Int::new(value.to_string(), false, NumberKind::Finite)
+        }
+    }
 }
 
 impl Float {
@@ -413,6 +434,67 @@ impl Float {
     }
     pub fn is_zero(&self) -> bool {
         self.mantissa.is_empty() || self.mantissa == "0" && self.exponent == 0
+    }
+    pub fn round(&self, precision: usize) -> Self {
+        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return self.clone();
+        }
+        if self.is_zero() {
+            return Float::new("0".to_string(), 0, false, NumberKind::Finite);
+        }
+
+        let mut mantissa = self.mantissa.clone();
+        let mut exponent = self.exponent;
+
+        if mantissa.len() > precision {
+            let round_digit = mantissa.chars().nth(precision).unwrap_or('0').to_digit(10).unwrap_or(0);
+            mantissa.truncate(precision);
+            if round_digit >= 5 {
+                let incremented = (mantissa.parse::<u64>().unwrap_or(0) + 1).to_string();
+                mantissa = incremented;
+            }
+        }
+
+        // Normalize the mantissa and adjust exponent
+        while mantissa.len() > 1 && mantissa.starts_with('0') {
+            mantissa.remove(0);
+            exponent -= 1;
+        }
+        if mantissa.is_empty() {
+            mantissa = "0".to_string();
+            exponent = 0;
+        }
+
+        Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
+    }
+    pub fn from_f64(value: f64) -> Self {
+        if value.is_nan() {
+            return Float::new(String::new(), 0, false, NumberKind::NaN);
+        }
+        if value.is_infinite() {
+            return Float::new(String::new(), 0, value.is_sign_negative(), NumberKind::Infinity);
+        }
+
+        let mut mantissa = value.to_string();
+        let exponent = if mantissa.contains('.') {
+            let parts: Vec<&str> = mantissa.split('.').collect();
+            let integer_part = parts[0];
+            let fractional_part = parts[1];
+            let exp = -(fractional_part.len() as i32);
+            mantissa = integer_part.to_string() + fractional_part;
+            exp
+        } else {
+            0
+        };
+
+        mantissa = normalize_int_digits(&mantissa);
+        Float::new(mantissa, exponent, value.is_sign_negative(), NumberKind::Finite)
+    }
+    pub fn is_integer_like(&self) -> bool {
+        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return false;
+        }
+        self.exponent >= 0 && self.mantissa.chars().all(|c| c.is_digit(10)) && !self.mantissa.is_empty()
     }
 }
 
