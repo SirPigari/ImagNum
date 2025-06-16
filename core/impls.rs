@@ -5,7 +5,9 @@ use crate::math::{
     add_float, sub_float, mul_float, div_float, mod_float,
     ERR_UNIMPLEMENTED, ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO, ERR_NEGATIVE_RESULT, ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_INFINITE_RESULT
 };
-use crate::functions::{create_imaginary};
+use crate::functions::{create_float, create_int, create_imaginary};
+use std::fmt::{Binary, Octal, LowerHex};
+use std::hash::{Hash, Hasher};
 
 impl Int {
     pub fn to_float(&self) -> Result<Float, i16> {
@@ -373,7 +375,6 @@ impl Float {
     }
 }
 
-
 fn normalize_int_digits(digits: &str) -> String {
     if digits.is_empty() || digits == "0" {
         return "0".to_string();
@@ -383,5 +384,100 @@ fn normalize_int_digits(digits: &str) -> String {
         "0".to_string()
     } else {
         normalized.to_string()
+    }
+}
+
+impl From<f64> for Float {
+    fn from(value: f64) -> Self {
+        create_float(&value.to_string())
+    }
+}
+
+impl From<i64> for Int {
+    fn from(value: i64) -> Self {
+        create_int(&value.to_string())
+    }
+}
+
+impl Binary for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = if self.negative { "-" } else { "" };
+        match self.kind {
+            NumberKind::Finite => {
+                if let Ok(num) = self.digits.parse::<i128>() {
+                    write!(f, "{}{:b}", prefix, num)
+                } else {
+                    Err(std::fmt::Error)
+                }
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+impl Octal for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = if self.negative { "-" } else { "" };
+        match self.kind {
+            NumberKind::Finite => {
+                if let Ok(num) = self.digits.parse::<i128>() {
+                    write!(f, "{}{:o}", prefix, num)
+                } else {
+                    Err(std::fmt::Error)
+                }
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+impl LowerHex for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = if self.negative { "-" } else { "" };
+        match self.kind {
+            NumberKind::Finite => {
+                if let Ok(num) = self.digits.parse::<i128>() {
+                    write!(f, "{}{:x}", prefix, num)
+                } else {
+                    Err(std::fmt::Error)
+                }
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+// Formatting traits for Float: Not very meaningful to implement binary/oct/lowerhex on floats,
+// so let's just fallback to error for now
+impl Binary for Float {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Err(std::fmt::Error)
+    }
+}
+impl Octal for Float {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Err(std::fmt::Error)
+    }
+}
+impl LowerHex for Float {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Err(std::fmt::Error)
+    }
+}
+
+impl Hash for Int {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.digits.hash(state);
+        self.negative.hash(state);
+        self.kind.hash(state);
+    }
+}
+
+impl Hash for Float {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.mantissa.hash(state);
+        self.exponent.hash(state);
+        self.negative.hash(state);
+        self.kind.hash(state);
     }
 }
