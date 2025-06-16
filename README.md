@@ -39,7 +39,7 @@ Both types use string-based storage for digits and mantissas to allow unbounded 
 ## Version
 
 ```txt
-0.1.0
+0.1.1
 ```
 
 ---
@@ -53,6 +53,8 @@ imagnum/
     ├── foundation.rs  # Basic numeric types
     ├── impls.rs       # Internal utility implementations
     ├── ops.rs         # Operator implementations (via `impl`)
+    ├── math.rs        # String math
+    ├── functions.rs   # Functions public in API
     └── complex.rs     # Complex and imaginary number types
 ```
 
