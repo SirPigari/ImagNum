@@ -164,6 +164,22 @@ impl Int {
             Int::new(value.to_string(), false, NumberKind::Finite)
         }
     }
+    pub fn from_str(value: &str) -> Result<Self, i16> {
+        if value.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let int = create_int(value);
+        if int.kind == NumberKind::NaN || int.kind == NumberKind::Infinity || int.kind == NumberKind::NegInfinity {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        Ok(int)
+    }
+    pub fn is_nan(&self) -> bool {
+        self.kind == NumberKind::NaN
+    }
+    pub fn is_infinity(&self) -> bool {
+        self.kind == NumberKind::Infinity
+    }
 }
 
 impl Float {
@@ -490,6 +506,16 @@ impl Float {
         mantissa = normalize_int_digits(&mantissa);
         Float::new(mantissa, exponent, value.is_sign_negative(), NumberKind::Finite)
     }
+    pub fn from_str(value: &str) -> Result<Self, i16> {
+        if value.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let float = create_float(value);
+        if float.kind == NumberKind::NaN || float.kind == NumberKind::Infinity || float.kind == NumberKind::NegInfinity {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        Ok(float)
+    }
     pub fn is_integer_like(&self) -> bool {
         if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
             return false;
@@ -512,6 +538,12 @@ impl Float {
 
         let digits = normalize_int_digits(&self.mantissa);
         Ok(Int::new(digits, self.negative, NumberKind::Finite))
+    }
+    pub fn is_nan(&self) -> bool {
+        self.kind == NumberKind::NaN
+    }
+    pub fn is_infinity(&self) -> bool {
+        self.kind == NumberKind::Infinity
     }
 }
 
