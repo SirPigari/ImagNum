@@ -4,7 +4,7 @@ This library provides numeric types for Lucia programming language.
 
 It's designed to handle any possible numeric value, including integers, floats, and complex numbers.
 
-Reffer to README.md
+Refer to README.md
 
 LICENSE: MIT License
 2025 Lucia Programming Language
