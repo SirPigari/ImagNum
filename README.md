@@ -39,7 +39,7 @@ Both types use string-based storage for digits and mantissas to allow unbounded 
 ## Version
 
 ```txt
-0.1.6
+0.1.7
 ```
 
 ---

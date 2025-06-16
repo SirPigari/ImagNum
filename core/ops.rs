@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use crate::foundation::{Int, Float, NumberKind, NAN_FLOAT};
+use crate::foundation::{Int, Float, NumberKind, NAN_FLOAT, NAN_INT};
 #[allow(unused_imports)]
 use crate::math::{
     ERR_UNIMPLEMENTED,
@@ -9,7 +9,10 @@ use crate::math::{
     ERR_NEGATIVE_SQRT,
     ERR_NUMBER_TOO_LARGE
 };
-use std::ops::{Add, Sub, Mul, Div, Rem, Neg};
+use std::ops::{
+    Add, Sub, Mul, Div, Rem, Neg,
+    AddAssign, SubAssign, MulAssign, DivAssign, RemAssign,
+};
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -58,6 +61,36 @@ impl Neg for Int {
 
     fn neg(self) -> Self::Output {
         Int::new(self.digits, !self.negative, self.kind)
+    }
+}
+
+impl AddAssign for Int {
+    fn add_assign(&mut self, other: Self) {
+        *self = self._add(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl SubAssign for Int {
+    fn sub_assign(&mut self, other: Self) {
+        *self = self._sub(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl MulAssign for Int {
+    fn mul_assign(&mut self, other: Self) {
+        *self = self._mul(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl DivAssign for Int {
+    fn div_assign(&mut self, other: Self) {
+        *self = self._div(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl RemAssign for Int {
+    fn rem_assign(&mut self, other: Self) {
+        *self = self._modulo(&other).unwrap_or_else(|_| NAN_INT.clone());
     }
 }
 
@@ -144,6 +177,36 @@ impl Neg for Float {
 
     fn neg(self) -> Self::Output {
         Float::new(self.mantissa, self.exponent, !self.negative, self.kind)
+    }
+}
+
+impl AddAssign for Float {
+    fn add_assign(&mut self, other: Self) {
+        *self = self._add(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl SubAssign for Float {
+    fn sub_assign(&mut self, other: Self) {
+        *self = self._sub(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl MulAssign for Float {
+    fn mul_assign(&mut self, other: Self) {
+        *self = self._mul(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl DivAssign for Float {
+    fn div_assign(&mut self, other: Self) {
+        *self = self._div(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl RemAssign for Float {
+    fn rem_assign(&mut self, other: Self) {
+        *self = self._modulo(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
     }
 }
 
