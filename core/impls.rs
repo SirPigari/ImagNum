@@ -125,6 +125,24 @@ impl Int {
     pub fn abs(&self) -> Self {
         Int::new(self.digits.clone(), false, self.kind)
     }
+
+    pub fn is_zero(&self) -> bool {
+        self.digits.is_empty() || self.digits == "0"
+    }
+    pub fn to_usize(&self) -> Result<usize, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+        if self.negative || self.digits.is_empty() || self.digits == "0" {
+            return Err(ERR_NEGATIVE_RESULT);
+        }
+
+        let value: usize = self.digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+        Ok(value)
+    }
 }
 
 impl Float {
@@ -392,6 +410,9 @@ impl Float {
         let exponent = 0;
 
         Ok(Float::new(mantissa, exponent, int.negative, NumberKind::Finite))
+    }
+    pub fn is_zero(&self) -> bool {
+        self.mantissa.is_empty() || self.mantissa == "0" && self.exponent == 0
     }
 }
 
