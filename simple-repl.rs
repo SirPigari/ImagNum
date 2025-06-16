@@ -1,0 +1,183 @@
+use imagnum::{
+    create_float, create_int, Float, Int,
+    errors::get_error_message,
+};
+use std::io::{self, Write};
+
+#[derive(Debug, Clone)]
+enum Number {
+    Int(Int),
+    Float(Float),
+}
+
+impl Number {
+    fn promote(&self) -> Result<Float, i16> {
+        match self {
+            Number::Int(i) => Ok(create_float(&i.to_string())),
+            Number::Float(f) => Ok(f.clone()),
+        }
+    }
+
+    fn display(&self) -> String {
+        match self {
+            Number::Int(i) => i.to_string(),
+            Number::Float(f) => f.to_string(),
+        }
+    }
+
+    fn add(self, other: Number) -> Result<Number, i16> {
+        match (self, other) {
+            (Number::Int(a), Number::Int(b)) => Ok(Number::Int((a + b)?)),
+            (a, b) => Ok(Number::Float((a.promote()? + b.promote()?)?)),
+        }
+    }
+
+    fn sub(self, other: Number) -> Result<Number, i16> {
+        match (self, other) {
+            (Number::Int(a), Number::Int(b)) => Ok(Number::Int((a - b)?)),
+            (a, b) => Ok(Number::Float((a.promote()? - b.promote()?)?)),
+        }
+    }
+
+    fn mul(self, other: Number) -> Result<Number, i16> {
+        match (self, other) {
+            (Number::Int(a), Number::Int(b)) => Ok(Number::Int((a * b)?)),
+            (a, b) => Ok(Number::Float((a.promote()? * b.promote()?)?)),
+        }
+    }
+
+    fn div(self, other: Number) -> Result<Number, i16> {
+        Ok(Number::Float((self.promote()? / other.promote()?)?))
+    }
+
+    fn sqrt(self) -> Result<Number, i16> {
+        let f = self.promote()?;
+        let res = f.sqrt()?;
+        Ok(Number::Float(res))
+    }
+
+    fn pow(self, other: Number) -> Result<Number, i16> {
+        match (self, other) {
+            (Number::Int(a), Number::Int(b)) => Ok(Number::Int(a.pow(&b)?)),
+            (a, b) => Ok(Number::Float(a.promote()?.pow(&b.promote()?)?)),
+        }
+    }
+    fn rem(self, other: Number) -> Result<Number, i16> {
+        let f_self = self.promote()?;
+        let f_other = other.promote()?;
+        Ok(Number::Float((f_self % f_other)?))
+    }    
+}
+
+fn parse_token(token: &str) -> Result<Number, i16> {
+    if token.contains('.') {
+        Ok(Number::Float(create_float(token)))
+    } else {
+        Ok(Number::Int(create_int(token)))
+    }
+}
+
+fn main() {
+    loop {
+        print!("calc> ");
+        io::stdout().flush().unwrap();
+
+        let mut line = String::new();
+        if io::stdin().read_line(&mut line).is_err() {
+            println!("input error");
+            continue;
+        }
+
+        let tokens: Vec<&str> = line.trim().split_whitespace().collect();
+        if tokens.is_empty() {
+            continue;
+        }
+
+        if tokens.len() == 2 && tokens[1] == "sqrt" {
+            match parse_token(tokens[0]) {
+                Ok(num) => match num.sqrt() {
+                    Ok(res) => println!("= {}", res.display()),
+                    Err(code) => println!("error [{}]: {}", code, get_error_message(code)),
+                },
+                Err(code) => println!("error [{}]: {}", code, get_error_message(code)),
+            }
+            continue;
+        }
+
+        if tokens.len() < 3 {
+            println!("format: num op num [op num ...]");
+            continue;
+        }
+
+        let mut iter = tokens.into_iter();
+
+        let mut acc = match parse_token(iter.next().unwrap()) {
+            Ok(n) => n,
+            Err(code) => {
+                println!("error [{}]: {}", code, get_error_message(code));
+                continue;
+            }
+        };
+
+        let mut error_occurred = false;
+
+        while let Some(op) = iter.next() {
+            let rhs_opt = iter.next();
+
+            if op == "sqrt" {
+                match acc.clone().sqrt() {
+                    Ok(res) => acc = res,
+                    Err(code) => {
+                        println!("error [{}]: {}", code, get_error_message(code));
+                        error_occurred = true;
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            let rhs = match rhs_opt {
+                Some(t) => match parse_token(t) {
+                    Ok(n) => n,
+                    Err(code) => {
+                        println!("error [{}]: {}", code, get_error_message(code));
+                        error_occurred = true;
+                        break;
+                    }
+                },
+                None => {
+                    println!("missing operand after operator '{}'", op);
+                    error_occurred = true;
+                    break;
+                }
+            };
+
+            let result = match op {
+                "+" => acc.clone().add(rhs),
+                "-" => acc.clone().sub(rhs),
+                "*" => acc.clone().mul(rhs),
+                "/" => acc.clone().div(rhs),
+                "^" => acc.clone().pow(rhs),
+                "%" => acc.clone().rem(rhs),
+                _ => {
+                    println!("unknown operator: {}", op);
+                    error_occurred = true;
+                    break;
+                }
+            };
+
+            acc = match result {
+                Ok(n) => n,
+                Err(code) => {
+                    println!("error [{}]: {}", code, get_error_message(code));
+                    error_occurred = true;
+                    break;
+                }
+            };
+        }
+
+        if !error_occurred {
+            println!("{}= {}", " ".repeat(4), acc.display());
+        }
+    }
+}

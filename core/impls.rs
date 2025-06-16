@@ -1,0 +1,387 @@
+use crate::foundation::{Float, Int, NumberKind};
+#[allow(unused_imports)]
+use crate::math::{
+    add_strings, sub_strings, mul_strings, div_strings, mod_strings, pow_strings, sqrt_string, is_string_odd,
+    add_float, sub_float, mul_float, div_float, mod_float,
+    ERR_UNIMPLEMENTED, ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO, ERR_NEGATIVE_RESULT, ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_INFINITE_RESULT
+};
+use crate::functions::{create_imaginary};
+
+impl Int {
+    pub fn to_float(&self) -> Result<Float, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity {
+            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        }
+        if self.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
+        }
+        if self.digits.is_empty() || self.digits == "0" {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
+
+        let mantissa = self.digits.clone();
+        let exponent = 0;
+
+        Ok(Float::new(mantissa, exponent, self.negative, NumberKind::Finite))
+    }
+
+    pub fn _add(&self, other: &Self) -> Result<Self, i16> {
+        match (self.negative, other.negative) {
+            (false, false) => {
+                let (digits, _) = add_strings(&self.digits, &other.digits)?;
+                let digits = normalize_int_digits(&digits);
+                Ok(Int::new(digits, false, NumberKind::Finite))
+            }
+            (true, true) => {
+                let (digits, _) = add_strings(&self.digits, &other.digits)?;
+                let digits = normalize_int_digits(&digits);
+                Ok(Int::new(digits, true, NumberKind::Finite))
+            }
+            (false, true) => {
+                self._sub(&Int::new(other.digits.clone(), false, other.kind))
+            }
+            (true, false) => {
+                let mut res = other._sub(&Int::new(self.digits.clone(), false, self.kind))?;
+                res.negative = !res.negative;
+                Ok(res)
+            }
+        }
+    }
+
+    pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
+        match (self.negative, other.negative) {
+            (false, false) => {
+                let (digits, sign_flipped) = sub_strings(&self.digits, &other.digits)?;
+                let digits = normalize_int_digits(&digits);
+                let negative = if digits == "0" {
+                    false
+                } else {
+                    sign_flipped
+                };
+                Ok(Int::new(digits, negative, NumberKind::Finite))
+            }
+            (true, true) => {
+                let res = Int::new(other.digits.clone(), false, other.kind)._sub(&Int::new(self.digits.clone(), false, self.kind))?;
+                Ok(Int {
+                    digits: res.digits,
+                    negative: res.negative,
+                    kind: NumberKind::Finite,
+                })
+            }
+            (false, true) => {
+                self._add(&Int::new(other.digits.clone(), false, other.kind))
+            }
+            (true, false) => {
+                let mut res = Int::new(self.digits.clone(), false, self.kind)._add(other)?;
+                res.negative = true;
+                Ok(res)
+            }
+        }
+    }
+
+    pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
+        let (digits, sign_flipped) = mul_strings(&self.digits, &other.digits)?;
+        let digits = normalize_int_digits(&digits);
+        let negative = self.negative ^ other.negative ^ sign_flipped;
+        Ok(Int::new(digits, negative, NumberKind::Finite))
+    }
+
+    pub fn _div(&self, other: &Self) -> Result<Self, i16> {
+        let (digits, sign_flipped) = div_strings(&self.digits, &other.digits)?;
+        let digits = normalize_int_digits(&digits);
+        let negative = self.negative ^ other.negative ^ sign_flipped;
+        Ok(Int::new(digits, negative, NumberKind::Finite))
+    }
+
+    pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
+        let (digits, sign_flipped) = mod_strings(&self.digits, &other.digits)?;
+        let digits = normalize_int_digits(&digits);
+        let negative = self.negative ^ sign_flipped;
+        Ok(Int::new(digits, negative, NumberKind::Finite))
+    }
+
+    pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
+        let (digits, sign_flipped) = pow_strings(&self.digits, &exponent.digits)?;
+        let digits = normalize_int_digits(&digits);
+        let negative = if self.negative && is_string_odd(&exponent.digits) {
+            true ^ sign_flipped
+        } else {
+            sign_flipped
+        };
+        Ok(Int::new(digits, negative, NumberKind::Finite))
+    }
+    pub fn sqrt(&self) -> Result<Float, i16> {
+        if self.negative {
+            return Ok(create_imaginary());
+        }
+        if self.digits.is_empty() || self.digits == "0" {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
+        if self.digits == "1" {
+            return Ok(Float::new("1".to_string(), 0, false, NumberKind::Finite));
+        }
+        let self_float = self.to_float()?;
+        self_float.sqrt()
+    }
+}
+
+impl Float {
+    pub fn to_f64(&self) -> Result<f64, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity {
+            return Ok(f64::INFINITY);
+        }
+        if self.kind == NumberKind::NegInfinity {
+            return Ok(f64::NEG_INFINITY);
+        }
+
+        let mut mantissa = self.mantissa.clone();
+        if self.negative {
+            mantissa.insert(0, '-');
+        }
+
+        let exponent = self.exponent;
+        let value: f64 = match exponent {
+            0 => mantissa.parse().map_err(|_| ERR_INVALID_FORMAT)?,
+            _ => {
+                let base: f64 = mantissa.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+                base * 10f64.powi(exponent)
+            }
+        };
+        
+        Ok(value)
+    }
+    pub fn sqrt(&self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity {
+            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        }
+        if self.kind == NumberKind::NegInfinity || self.negative {
+            return Err(ERR_NEGATIVE_SQRT);
+        }
+        let self_f64 = self.to_f64()?;
+        if self_f64 < 0.0 {
+            return Ok(create_imaginary());
+        }
+        if self_f64 == 0.0 {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
+        let sqrt_value = self_f64.sqrt();
+        let mut mantissa = sqrt_value.to_string();
+        let exponent = if mantissa.contains('.') {
+            let parts: Vec<&str> = mantissa.split('.').collect();
+            let integer_part = parts[0];
+            let fractional_part = parts[1];
+            let exponent = -(fractional_part.len() as i32);
+            mantissa = integer_part.to_string() + fractional_part;
+            exponent
+        } else {
+            0
+        };
+        mantissa = normalize_int_digits(&mantissa);
+        Ok(Float::new(mantissa, exponent, false, NumberKind::Finite))
+    }
+    pub fn _add(&self, other: &Self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity && other.kind == NumberKind::Infinity {
+            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        }
+        if self.kind == NumberKind::NegInfinity && other.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
+        }
+        if (self.kind == NumberKind::Infinity && other.kind == NumberKind::NegInfinity) ||
+           (self.kind == NumberKind::NegInfinity && other.kind == NumberKind::Infinity) {
+            return Err(ERR_INFINITE_RESULT);
+        }
+    
+        let (mantissa, exponent, negative) = add_float(
+            self.mantissa.clone(), self.exponent, self.negative,
+            other.mantissa.clone(), other.exponent, other.negative,
+        )?;
+    
+        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+    }
+    pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity && other.kind == NumberKind::Infinity {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
+        if self.kind == NumberKind::NegInfinity && other.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("0".to_string(), 0, true, NumberKind::Finite));
+        }
+        if (self.kind == NumberKind::Infinity && other.kind == NumberKind::NegInfinity) ||
+           (self.kind == NumberKind::NegInfinity && other.kind == NumberKind::Infinity) {
+            return Err(ERR_INFINITE_RESULT);
+        }
+    
+        let (mantissa, exponent, negative) = sub_float(
+            self.mantissa.clone(), self.exponent, self.negative,
+            other.mantissa.clone(), other.exponent, other.negative,
+        )?;
+    
+        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+    }
+    pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || other.kind == NumberKind::Infinity {
+            return Ok(Float::new("Infinity".to_string(), 0, self.negative ^ other.negative, NumberKind::Infinity));
+        }
+        if self.kind == NumberKind::NegInfinity || other.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("Infinity".to_string(), 0, !(self.negative ^ other.negative), NumberKind::NegInfinity));
+        }
+
+        let (mantissa, exponent, negative) = mul_float(
+            self.mantissa.clone(), self.exponent, self.negative,
+            other.mantissa.clone(), other.exponent, other.negative,
+        )?;
+
+        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+    }
+    pub fn _div(&self, other: &Self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if other.mantissa.is_empty() || other.mantissa == "0" && other.exponent == 0 && self.exponent == 0 {
+            return Err(ERR_DIV_BY_ZERO);
+        }
+        if self.kind == NumberKind::Infinity && other.kind == NumberKind::Infinity {
+            return Ok(Float::new("NaN".to_string(), 0, false, NumberKind::NaN));
+        }
+        if self.kind == NumberKind::NegInfinity && other.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("NaN".to_string(), 0, false, NumberKind::NaN));
+        }
+        if (self.kind == NumberKind::Infinity && other.kind == NumberKind::NegInfinity) ||
+           (self.kind == NumberKind::NegInfinity && other.kind == NumberKind::Infinity) {
+            return Ok(Float::new("0".to_string(), 0, self.negative ^ other.negative, NumberKind::Finite));
+        }
+
+        let (mantissa, exponent, negative) = div_float(
+            self.mantissa.clone(), self.exponent, self.negative,
+            other.mantissa.clone(), other.exponent, other.negative,
+        )?;
+
+        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+    }
+    pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if other.mantissa.is_empty() || other.mantissa == "0" && other.exponent == 0 && self.exponent == 0 {
+            return Err(ERR_DIV_BY_ZERO);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("NaN".to_string(), 0, false, NumberKind::NaN));
+        }
+
+        let (mantissa, exponent, negative) = mod_float(
+            self.mantissa.clone(), self.exponent, self.negative,
+            other.mantissa.clone(), other.exponent, other.negative,
+        )?;
+
+        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+    }
+    pub fn _pow(&self, exponent: &Self) -> Result<Self, i16> {
+        if self.kind == NumberKind::NaN || exponent.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity && exponent.mantissa == "0" {
+            return Ok(Float::new("1".to_string(), 0, false, NumberKind::Finite));
+        }
+        if self.kind == NumberKind::NegInfinity && exponent.mantissa == "0" {
+            return Ok(Float::new("1".to_string(), 0, true, NumberKind::Finite));
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Ok(Float::new(
+                "Infinity".to_string(),
+                0,
+                self.negative ^ exponent.negative,
+                NumberKind::Infinity,
+            ));
+        }
+    
+        // Check mantissa length and exponent limits to avoid overflow converting to f64
+        if self.mantissa.len() > 17 || self.exponent > 308 || self.exponent < -308 {
+            return Err(ERR_NUMBER_TOO_LARGE);
+        }
+        if exponent.mantissa.len() > 17 || exponent.exponent > 308 || exponent.exponent < -308 {
+            return Err(ERR_NUMBER_TOO_LARGE);
+        }
+    
+        let base_sign = if self.negative { -1.0 } else { 1.0 };
+        let base_val: f64 = self.mantissa.parse::<f64>().unwrap_or(0.0);
+        let base_f64 = base_sign * base_val * 10f64.powi(self.exponent);
+    
+        let exp_sign = if exponent.negative { -1.0 } else { 1.0 };
+        let exp_val: f64 = exponent.mantissa.parse::<f64>().unwrap_or(0.0);
+        let exponent_f64 = exp_sign * exp_val * 10f64.powi(exponent.exponent);
+    
+        let pow_res = base_f64.powf(exponent_f64);
+    
+        if pow_res.is_nan() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if pow_res.is_infinite() {
+            return Ok(Float::new(
+                "Infinity".to_string(),
+                0,
+                pow_res.is_sign_negative(),
+                NumberKind::Infinity,
+            ));
+        }
+    
+        let negative = pow_res.is_sign_negative();
+        let abs_res = pow_res.abs();
+    
+        if abs_res == 0.0 {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
+    
+        let exp = abs_res.log10().floor() as i32;
+        let mant = abs_res / 10f64.powi(exp);
+    
+        let digits = 15;
+        let scaled_mant = (mant * 10f64.powi(digits)).round() as u64;
+        let mantissa_str = scaled_mant.to_string();
+    
+        let final_exp = exp - digits;
+    
+        Ok(Float::new(mantissa_str, final_exp, negative, NumberKind::Finite))
+    }
+    pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
+        self._pow(exponent).or_else(|_| {
+            if self.kind == NumberKind::NaN || exponent.kind == NumberKind::NaN {
+                Err(ERR_INVALID_FORMAT)
+            } else if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+                Err(ERR_INFINITE_RESULT)
+            } else {
+                Err(ERR_UNIMPLEMENTED)
+            }
+        })
+    }
+}
+
+
+fn normalize_int_digits(digits: &str) -> String {
+    if digits.is_empty() || digits == "0" {
+        return "0".to_string();
+    }
+    let normalized = digits.trim_start_matches('0');
+    if normalized.is_empty() {
+        "0".to_string()
+    } else {
+        normalized.to_string()
+    }
+}

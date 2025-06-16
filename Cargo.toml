@@ -1,5 +1,5 @@
 [package]
-name = "imag_num"
+name = "imagnum"
 version = "0.1.0"
 edition = "2024"
 
@@ -11,4 +11,4 @@ path = "imagnum.rs"
 
 [[bin]]
 name = "tests"
-path = "tests.rs"
+path = "test.rs"

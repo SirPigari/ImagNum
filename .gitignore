@@ -4,3 +4,5 @@
 .idea/
 target/
 Cargo.lock
+math.exe
+test.rs
