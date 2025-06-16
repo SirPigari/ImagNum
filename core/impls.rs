@@ -29,7 +29,6 @@ impl Int {
 
         Ok(Float::new(mantissa, exponent, self.negative, NumberKind::Finite))
     }
-
     pub fn _add(&self, other: &Self) -> Result<Self, i16> {
         match (self.negative, other.negative) {
             (false, false) => {
@@ -52,7 +51,6 @@ impl Int {
             }
         }
     }
-
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
         match (self.negative, other.negative) {
             (false, false) => {
@@ -83,28 +81,24 @@ impl Int {
             }
         }
     }
-
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = mul_strings(&self.digits, &other.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = self.negative ^ other.negative ^ sign_flipped;
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
-
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = div_strings(&self.digits, &other.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = self.negative ^ other.negative ^ sign_flipped;
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
-
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = mod_strings(&self.digits, &other.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = self.negative ^ sign_flipped;
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
-
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = pow_strings(&self.digits, &exponent.digits)?;
         let digits = normalize_int_digits(&digits);
@@ -127,6 +121,9 @@ impl Int {
         }
         let self_float = self.to_float()?;
         self_float.sqrt()
+    }
+    pub fn abs(&self) -> Self {
+        Int::new(self.digits.clone(), false, self.kind)
     }
 }
 
@@ -372,6 +369,29 @@ impl Float {
                 Err(ERR_UNIMPLEMENTED)
             }
         })
+    }
+    pub fn abs(&self) -> Self {
+        Float::new(self.mantissa.clone(), self.exponent, false, self.kind)
+    }
+    
+    pub fn from_int(int: &Int) -> Result<Self, i16> {
+        if int.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if int.kind == NumberKind::Infinity {
+            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        }
+        if int.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
+        }
+        if int.digits.is_empty() || int.digits == "0" {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
+
+        let mantissa = int.digits.clone();
+        let exponent = 0;
+
+        Ok(Float::new(mantissa, exponent, int.negative, NumberKind::Finite))
     }
 }
 
