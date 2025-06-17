@@ -102,16 +102,35 @@ impl PartialOrd for Int {
         if !self.negative && other.negative {
             return Some(Ordering::Greater);
         }
-        if self.digits == other.digits {
-            return Some(Ordering::Equal);
+
+        let self_digits = self.digits.trim_start_matches('0');
+        let other_digits = other.digits.trim_start_matches('0');
+
+        let len_cmp = self_digits.len().cmp(&other_digits.len());
+
+        if len_cmp != Ordering::Equal {
+            return if self.negative {
+                Some(len_cmp.reverse())
+            } else {
+                Some(len_cmp)
+            };
         }
-        if self.negative {
-            Some(other.digits.cmp(&self.digits).reverse())
-        } else {
-            Some(self.digits.cmp(&other.digits))
+
+        for (a, b) in self_digits.chars().zip(other_digits.chars()) {
+            if a != b {
+                let cmp = a.cmp(&b);
+                return if self.negative {
+                    Some(cmp.reverse())
+                } else {
+                    Some(cmp)
+                };
+            }
         }
+
+        Some(Ordering::Equal)
     }
 }
+
 
 impl Display for Int {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -218,14 +237,30 @@ impl PartialOrd for Float {
         if !self.negative && other.negative {
             return Some(Ordering::Greater);
         }
-        if self.mantissa == other.mantissa && self.exponent == other.exponent {
-            return Some(Ordering::Equal);
+
+        let sign = if self.negative { -1 } else { 1 };
+
+        let exp_cmp = self.exponent.cmp(&other.exponent);
+        if exp_cmp != Ordering::Equal {
+            return Some(if sign == 1 { exp_cmp } else { exp_cmp.reverse() });
         }
-        if self.negative {
-            Some(other.to_f64().unwrap().partial_cmp(&self.to_f64().unwrap()).unwrap().reverse())
-        } else {
-            Some(self.to_f64().unwrap().partial_cmp(&other.to_f64().unwrap()).unwrap())
+
+        let self_man = self.mantissa.trim_start_matches('0');
+        let other_man = other.mantissa.trim_start_matches('0');
+
+        let len_cmp = self_man.len().cmp(&other_man.len());
+        if len_cmp != Ordering::Equal {
+            return Some(if sign == 1 { len_cmp } else { len_cmp.reverse() });
         }
+
+        for (a, b) in self_man.chars().zip(other_man.chars()) {
+            if a != b {
+                let cmp = a.cmp(&b);
+                return Some(if sign == 1 { cmp } else { cmp.reverse() });
+            }
+        }
+
+        Some(Ordering::Equal)
     }
 }
 
