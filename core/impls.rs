@@ -150,11 +150,16 @@ impl Int {
         if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
             return Err(ERR_INFINITE_RESULT);
         }
-        if self.negative || self.digits.is_empty() || self.digits == "0" {
-            return Err(ERR_NEGATIVE_RESULT);
+
+        if self.digits.is_empty() || self.digits == "0" {
+            return Ok(0 as i64);
         }
 
-        let value: i64 = self.digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+        let value = if self.negative {
+            -self.digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+        } else {
+            self.digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+        };
         Ok(value)
     }
     pub fn from_i64(value: i64) -> Self {
