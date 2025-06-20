@@ -624,10 +624,25 @@ impl Float {
         if !self.is_integer_like() {
             return Err(ERR_INVALID_FORMAT);
         }
-
-        let digits = normalize_int_digits(&self.mantissa);
+    
+        let mut digits = self.mantissa.clone();
+    
+        if self.exponent < 0 {
+            let exp = (-self.exponent) as usize;
+            if exp >= digits.len() {
+                digits = "0".to_string();
+            } else {
+                digits.truncate(digits.len() - exp);
+            }
+        } else if self.exponent > 0 {
+            digits.push_str(&"0".repeat(self.exponent as usize));
+        }
+    
+        let digits = normalize_int_digits(&digits);
+    
         Ok(Int::new(digits, self.negative, NumberKind::Finite))
     }
+    
     pub fn is_nan(&self) -> bool {
         self.kind == NumberKind::NaN
     }
