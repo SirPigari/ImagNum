@@ -5,7 +5,9 @@ use crate::math::{
     add_float, sub_float, mul_float, div_float, mod_float,
     ERR_UNIMPLEMENTED, ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO, ERR_NEGATIVE_RESULT, ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_INFINITE_RESULT
 };
-use crate::functions::{create_imaginary};
+use crate::functions::{create_float, create_int, create_imaginary};
+use std::fmt::{Binary, Octal, LowerHex};
+use std::hash::{Hash, Hasher};
 
 impl Int {
     pub fn to_float(&self) -> Result<Float, i16> {
@@ -27,7 +29,6 @@ impl Int {
 
         Ok(Float::new(mantissa, exponent, self.negative, NumberKind::Finite))
     }
-
     pub fn _add(&self, other: &Self) -> Result<Self, i16> {
         match (self.negative, other.negative) {
             (false, false) => {
@@ -50,7 +51,6 @@ impl Int {
             }
         }
     }
-
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
         match (self.negative, other.negative) {
             (false, false) => {
@@ -81,28 +81,24 @@ impl Int {
             }
         }
     }
-
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = mul_strings(&self.digits, &other.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = self.negative ^ other.negative ^ sign_flipped;
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
-
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = div_strings(&self.digits, &other.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = self.negative ^ other.negative ^ sign_flipped;
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
-
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = mod_strings(&self.digits, &other.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = self.negative ^ sign_flipped;
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
-
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
         let (digits, sign_flipped) = pow_strings(&self.digits, &exponent.digits)?;
         let digits = normalize_int_digits(&digits);
@@ -125,6 +121,69 @@ impl Int {
         }
         let self_float = self.to_float()?;
         self_float.sqrt()
+    }
+    pub fn abs(&self) -> Self {
+        Int::new(self.digits.clone(), false, self.kind)
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.digits.is_empty() || self.digits == "0"
+    }
+    pub fn to_usize(&self) -> Result<usize, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+        if self.negative || self.digits.is_empty() || self.digits == "0" {
+            return Err(ERR_NEGATIVE_RESULT);
+        }
+
+        let value: usize = self.digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+        Ok(value)
+    }
+    pub fn to_i64(&self) -> Result<i64, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+
+        if self.digits.is_empty() || self.digits == "0" {
+            return Ok(0 as i64);
+        }
+
+        let value = if self.negative {
+            -self.digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+        } else {
+            self.digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+        };
+        Ok(value)
+    }
+    pub fn from_i64(value: i64) -> Self {
+        if value < 0 {
+            Int::new(value.abs().to_string(), true, NumberKind::Finite)
+        } else {
+            Int::new(value.to_string(), false, NumberKind::Finite)
+        }
+    }
+    pub fn from_str(value: &str) -> Result<Self, i16> {
+        if value.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let int = create_int(value);
+        if int.kind == NumberKind::NaN || int.kind == NumberKind::Infinity || int.kind == NumberKind::NegInfinity {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        Ok(int)
+    }
+    pub fn is_nan(&self) -> bool {
+        self.kind == NumberKind::NaN
+    }
+    pub fn is_infinity(&self) -> bool {
+        self.kind == NumberKind::Infinity
     }
 }
 
@@ -371,8 +430,145 @@ impl Float {
             }
         })
     }
-}
+    pub fn abs(&self) -> Self {
+        Float::new(self.mantissa.clone(), self.exponent, false, self.kind)
+    }
+    
+    pub fn from_int(int: &Int) -> Result<Self, i16> {
+        if int.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if int.kind == NumberKind::Infinity {
+            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        }
+        if int.kind == NumberKind::NegInfinity {
+            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
+        }
+        if int.digits.is_empty() || int.digits == "0" {
+            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        }
 
+        let mantissa = int.digits.clone();
+        let exponent = 0;
+
+        Ok(Float::new(mantissa, exponent, int.negative, NumberKind::Finite))
+    }
+    pub fn is_zero(&self) -> bool {
+        self.mantissa.is_empty() || self.mantissa == "0" && self.exponent == 0
+    }
+    pub fn round(&self, precision: usize) -> Self {
+        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return self.clone();
+        }
+        if self.is_zero() {
+            return Float::new("0".to_string(), 0, false, NumberKind::Finite);
+        }
+    
+        let mut mantissa = self.mantissa.clone();
+        let mut exponent = self.exponent;
+    
+        if mantissa.len() > precision {
+            let round_digit = mantissa.chars().nth(precision).unwrap_or('0').to_digit(10).unwrap_or(0);
+            mantissa.truncate(precision);
+            if round_digit >= 5 {
+                // Convert mantissa to vector of digits for safe increment
+                let mut digits: Vec<u8> = mantissa.bytes().map(|b| b - b'0').collect();
+    
+                // Add 1 with carry handling
+                let mut carry = 1;
+                for d in digits.iter_mut().rev() {
+                    let sum = *d + carry;
+                    *d = sum % 10;
+                    carry = sum / 10;
+                    if carry == 0 {
+                        break;
+                    }
+                }
+                if carry > 0 {
+                    digits.insert(0, carry);
+                    exponent += 1; // Length increased, so exponent increases
+                }
+    
+                mantissa = digits.into_iter().map(|d| (d + b'0') as char).collect();
+            }
+        }
+    
+        // Normalize mantissa and adjust exponent
+        while mantissa.len() > 1 && mantissa.starts_with('0') {
+            mantissa.remove(0);
+            exponent -= 1;
+        }
+        if mantissa.is_empty() {
+            mantissa = "0".to_string();
+            exponent = 0;
+        }
+    
+        Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
+    }
+    
+    pub fn from_f64(value: f64) -> Self {
+        if value.is_nan() {
+            return Float::new(String::new(), 0, false, NumberKind::NaN);
+        }
+        if value.is_infinite() {
+            return Float::new(String::new(), 0, value.is_sign_negative(), NumberKind::Infinity);
+        }
+
+        let mut mantissa = value.to_string();
+        let exponent = if mantissa.contains('.') {
+            let parts: Vec<&str> = mantissa.split('.').collect();
+            let integer_part = parts[0];
+            let fractional_part = parts[1];
+            let exp = -(fractional_part.len() as i32);
+            mantissa = integer_part.to_string() + fractional_part;
+            exp
+        } else {
+            0
+        };
+
+        mantissa = normalize_int_digits(&mantissa);
+        Float::new(mantissa, exponent, value.is_sign_negative(), NumberKind::Finite)
+    }
+    pub fn from_str(value: &str) -> Result<Self, i16> {
+        if value.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let float = create_float(value);
+        if float.kind == NumberKind::NaN || float.kind == NumberKind::Infinity || float.kind == NumberKind::NegInfinity {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        Ok(float)
+    }
+    pub fn is_integer_like(&self) -> bool {
+        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return false;
+        }
+        self.exponent >= 0 && self.mantissa.chars().all(|c| c.is_digit(10)) && !self.mantissa.is_empty()
+    }
+    pub fn to_int(&self) -> Result<Int, i16> {
+        if self.kind == NumberKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+        if self.is_zero() {
+            return Ok(Int::new("0".to_string(), false, NumberKind::Finite));
+        }
+        if !self.is_integer_like() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+
+        let digits = normalize_int_digits(&self.mantissa);
+        Ok(Int::new(digits, self.negative, NumberKind::Finite))
+    }
+    pub fn is_nan(&self) -> bool {
+        self.kind == NumberKind::NaN
+    }
+    pub fn is_infinity(&self) -> bool {
+        self.kind == NumberKind::Infinity
+    }
+}
 
 fn normalize_int_digits(digits: &str) -> String {
     if digits.is_empty() || digits == "0" {
@@ -383,5 +579,125 @@ fn normalize_int_digits(digits: &str) -> String {
         "0".to_string()
     } else {
         normalized.to_string()
+    }
+}
+
+impl From<f64> for Float {
+    fn from(value: f64) -> Self {
+        create_float(&value.to_string())
+    }
+}
+
+impl From<i64> for Int {
+    fn from(value: i64) -> Self {
+        create_int(&value.to_string())
+    }
+}
+
+impl Binary for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = if self.negative { "-" } else { "" };
+        match self.kind {
+            NumberKind::Finite => {
+                if let Ok(num) = self.digits.parse::<i128>() {
+                    write!(f, "{}{:b}", prefix, num)
+                } else {
+                    Err(std::fmt::Error)
+                }
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+impl Octal for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = if self.negative { "-" } else { "" };
+        match self.kind {
+            NumberKind::Finite => {
+                if let Ok(num) = self.digits.parse::<i128>() {
+                    write!(f, "{}{:o}", prefix, num)
+                } else {
+                    Err(std::fmt::Error)
+                }
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+impl LowerHex for Int {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let prefix = if self.negative { "-" } else { "" };
+        match self.kind {
+            NumberKind::Finite => {
+                if let Ok(num) = self.digits.parse::<i128>() {
+                    write!(f, "{}{:x}", prefix, num)
+                } else {
+                    Err(std::fmt::Error)
+                }
+            }
+            _ => Err(std::fmt::Error),
+        }
+    }
+}
+
+// Formatting traits for Float: Not very meaningful to implement binary/oct/lowerhex on floats,
+// so let's just fallback to error for now
+impl Binary for Float {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Err(std::fmt::Error)
+    }
+}
+impl Octal for Float {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Err(std::fmt::Error)
+    }
+}
+impl LowerHex for Float {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Err(std::fmt::Error)
+    }
+}
+
+impl Hash for Int {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.digits.hash(state);
+        self.negative.hash(state);
+        self.kind.hash(state);
+    }
+}
+
+impl Hash for Float {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.mantissa.hash(state);
+        self.exponent.hash(state);
+        self.negative.hash(state);
+        self.kind.hash(state);
+    }
+}
+
+
+impl From<usize> for Int {
+    fn from(value: usize) -> Self {
+        create_int(&value.to_string())
+    }
+}
+
+impl From<isize> for Int {
+    fn from(value: isize) -> Self {
+        create_int(&value.to_string())
+    }
+}
+
+impl From<f32> for Float {
+    fn from(value: f32) -> Self {
+        create_float(&value.to_string())
+    }
+}
+
+impl From<i32> for Int {
+    fn from(value: i32) -> Self {
+        create_int(&value.to_string())
     }
 }

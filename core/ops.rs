@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use crate::foundation::{Int, Float, NumberKind, NAN_FLOAT};
+use crate::foundation::{Int, Float, NumberKind, NAN_FLOAT, NAN_INT};
 #[allow(unused_imports)]
 use crate::math::{
     ERR_UNIMPLEMENTED,
@@ -9,7 +9,10 @@ use crate::math::{
     ERR_NEGATIVE_SQRT,
     ERR_NUMBER_TOO_LARGE
 };
-use std::ops::{Add, Sub, Mul, Div, Rem, Neg};
+use std::ops::{
+    Add, Sub, Mul, Div, Rem, Neg,
+    AddAssign, SubAssign, MulAssign, DivAssign, RemAssign,
+};
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -61,6 +64,36 @@ impl Neg for Int {
     }
 }
 
+impl AddAssign for Int {
+    fn add_assign(&mut self, other: Self) {
+        *self = self._add(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl SubAssign for Int {
+    fn sub_assign(&mut self, other: Self) {
+        *self = self._sub(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl MulAssign for Int {
+    fn mul_assign(&mut self, other: Self) {
+        *self = self._mul(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl DivAssign for Int {
+    fn div_assign(&mut self, other: Self) {
+        *self = self._div(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
+impl RemAssign for Int {
+    fn rem_assign(&mut self, other: Self) {
+        *self = self._modulo(&other).unwrap_or_else(|_| NAN_INT.clone());
+    }
+}
+
 impl PartialOrd for Int {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.negative && !other.negative {
@@ -69,16 +102,35 @@ impl PartialOrd for Int {
         if !self.negative && other.negative {
             return Some(Ordering::Greater);
         }
-        if self.digits == other.digits {
-            return Some(Ordering::Equal);
+
+        let self_digits = self.digits.trim_start_matches('0');
+        let other_digits = other.digits.trim_start_matches('0');
+
+        let len_cmp = self_digits.len().cmp(&other_digits.len());
+
+        if len_cmp != Ordering::Equal {
+            return if self.negative {
+                Some(len_cmp.reverse())
+            } else {
+                Some(len_cmp)
+            };
         }
-        if self.negative {
-            Some(other.digits.cmp(&self.digits).reverse())
-        } else {
-            Some(self.digits.cmp(&other.digits))
+
+        for (a, b) in self_digits.chars().zip(other_digits.chars()) {
+            if a != b {
+                let cmp = a.cmp(&b);
+                return if self.negative {
+                    Some(cmp.reverse())
+                } else {
+                    Some(cmp)
+                };
+            }
         }
+
+        Some(Ordering::Equal)
     }
 }
+
 
 impl Display for Int {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -147,6 +199,36 @@ impl Neg for Float {
     }
 }
 
+impl AddAssign for Float {
+    fn add_assign(&mut self, other: Self) {
+        *self = self._add(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl SubAssign for Float {
+    fn sub_assign(&mut self, other: Self) {
+        *self = self._sub(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl MulAssign for Float {
+    fn mul_assign(&mut self, other: Self) {
+        *self = self._mul(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl DivAssign for Float {
+    fn div_assign(&mut self, other: Self) {
+        *self = self._div(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
+impl RemAssign for Float {
+    fn rem_assign(&mut self, other: Self) {
+        *self = self._modulo(&other).unwrap_or_else(|_| NAN_FLOAT.clone());
+    }
+}
+
 impl PartialOrd for Float {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.negative && !other.negative {
@@ -155,14 +237,30 @@ impl PartialOrd for Float {
         if !self.negative && other.negative {
             return Some(Ordering::Greater);
         }
-        if self.mantissa == other.mantissa && self.exponent == other.exponent {
-            return Some(Ordering::Equal);
+
+        let sign = if self.negative { -1 } else { 1 };
+
+        let exp_cmp = self.exponent.cmp(&other.exponent);
+        if exp_cmp != Ordering::Equal {
+            return Some(if sign == 1 { exp_cmp } else { exp_cmp.reverse() });
         }
-        if self.negative {
-            Some(other.to_f64().unwrap().partial_cmp(&self.to_f64().unwrap()).unwrap().reverse())
-        } else {
-            Some(self.to_f64().unwrap().partial_cmp(&other.to_f64().unwrap()).unwrap())
+
+        let self_man = self.mantissa.trim_start_matches('0');
+        let other_man = other.mantissa.trim_start_matches('0');
+
+        let len_cmp = self_man.len().cmp(&other_man.len());
+        if len_cmp != Ordering::Equal {
+            return Some(if sign == 1 { len_cmp } else { len_cmp.reverse() });
         }
+
+        for (a, b) in self_man.chars().zip(other_man.chars()) {
+            if a != b {
+                let cmp = a.cmp(&b);
+                return Some(if sign == 1 { cmp } else { cmp.reverse() });
+            }
+        }
+
+        Some(Ordering::Equal)
     }
 }
 
