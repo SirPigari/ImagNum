@@ -62,11 +62,23 @@ impl Number {
             (a, b) => Ok(Number::Float(a.promote()?.pow(&b.promote()?)?)),
         }
     }
+
     fn rem(self, other: Number) -> Result<Number, i16> {
         let f_self = self.promote()?;
         let f_other = other.promote()?;
         Ok(Number::Float((f_self % f_other)?))
-    }    
+    }
+
+    fn round(self, decimals: usize) -> Result<Number, i16> {
+        let f = self.promote()?;
+        let rounded = f.round(decimals);
+        Ok(Number::Float(rounded))
+    }
+    fn truncate(self, decimals: usize) -> Result<Number, i16> {
+        let f = self.promote()?;
+        let truncated = f.truncate(decimals);
+        Ok(Number::Float(truncated))
+    }
 }
 
 fn parse_token(token: &str) -> Result<Number, i16> {
@@ -122,8 +134,6 @@ fn main() {
         let mut error_occurred = false;
 
         while let Some(op) = iter.next() {
-            let rhs_opt = iter.next();
-
             if op == "sqrt" {
                 match acc.clone().sqrt() {
                     Ok(res) => acc = res,
@@ -136,7 +146,65 @@ fn main() {
                 continue;
             }
 
-            let rhs = match rhs_opt {
+            if op == "round" {
+                let rhs_opt = iter.next();
+                let decimals = match rhs_opt {
+                    Some(d_str) => match d_str.parse::<u32>() {
+                        Ok(val) => val,
+                        Err(_) => {
+                            println!("invalid decimals argument for round: {}", d_str);
+                            error_occurred = true;
+                            break;
+                        }
+                    },
+                    None => {
+                        println!("missing decimals argument for round");
+                        error_occurred = true;
+                        break;
+                    }
+                };
+
+                match acc.clone().round(decimals as usize) {
+                    Ok(res) => acc = res,
+                    Err(code) => {
+                        println!("error [{}]: {}", code, get_error_message(code));
+                        error_occurred = true;
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            if op == "trunc" {
+                let rhs_opt = iter.next();
+                let decimals = match rhs_opt {
+                    Some(d_str) => match d_str.parse::<u32>() {
+                        Ok(val) => val,
+                        Err(_) => {
+                            println!("invalid decimals argument for round: {}", d_str);
+                            error_occurred = true;
+                            break;
+                        }
+                    },
+                    None => {
+                        println!("missing decimals argument for round");
+                        error_occurred = true;
+                        break;
+                    }
+                };
+
+                match acc.clone().truncate(decimals as usize) {
+                    Ok(res) => acc = res,
+                    Err(code) => {
+                        println!("error [{}]: {}", code, get_error_message(code));
+                        error_occurred = true;
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            let rhs = match iter.next() {
                 Some(t) => match parse_token(t) {
                     Ok(n) => n,
                     Err(code) => {

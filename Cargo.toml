@@ -1,6 +1,6 @@
 [package]
 name = "imagnum"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2024"
 authors = ["SirPigari"]
 description = "A Rust library providing versatile numeric types supporting integers and floats designed for the Lucia programming language."
@@ -17,3 +17,7 @@ once_cell = "1.21.3"
 
 [lib]
 path = "imagnum.rs"
+
+[[bin]]
+name = "repl"
+path = "simple-repl.rs"

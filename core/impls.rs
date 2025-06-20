@@ -464,17 +464,18 @@ impl Float {
             return Float::new("0".to_string(), 0, false, NumberKind::Finite);
         }
     
+        let old_len = self.mantissa.len();
+    
         let mut mantissa = self.mantissa.clone();
         let mut exponent = self.exponent;
     
         if mantissa.len() > precision {
             let round_digit = mantissa.chars().nth(precision).unwrap_or('0').to_digit(10).unwrap_or(0);
             mantissa.truncate(precision);
+    
             if round_digit >= 5 {
-                // Convert mantissa to vector of digits for safe increment
                 let mut digits: Vec<u8> = mantissa.bytes().map(|b| b - b'0').collect();
     
-                // Add 1 with carry handling
                 let mut carry = 1;
                 for d in digits.iter_mut().rev() {
                     let sum = *d + carry;
@@ -486,14 +487,16 @@ impl Float {
                 }
                 if carry > 0 {
                     digits.insert(0, carry);
-                    exponent += 1; // Length increased, so exponent increases
+                    exponent += 1; // mantissa length increased by 1
                 }
-    
                 mantissa = digits.into_iter().map(|d| (d + b'0') as char).collect();
             }
+    
+            // Adjust exponent so decimal point stays the same
+            exponent += old_len as i32 - mantissa.len() as i32;
         }
     
-        // Normalize mantissa and adjust exponent
+        // Remove leading zeros and adjust exponent accordingly
         while mantissa.len() > 1 && mantissa.starts_with('0') {
             mantissa.remove(0);
             exponent -= 1;
@@ -505,7 +508,44 @@ impl Float {
     
         Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
     }
+    pub fn truncate(&self, decimal_places: usize) -> Self {
+        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return self.clone();
+        }
+        if self.is_zero() {
+            return Float::new("0".to_string(), 0, false, NumberKind::Finite);
+        }
     
+        let mantissa_len = self.mantissa.len() as i32;
+        let point_pos = mantissa_len + self.exponent; // decimal point position relative to mantissa
+    
+        // digits to keep = digits before decimal + decimal_places
+        let digits_to_keep = if point_pos > 0 {
+            (point_pos as usize) + decimal_places
+        } else {
+            decimal_places
+        };
+    
+        let mut mantissa = self.mantissa.clone();
+        if mantissa.len() > digits_to_keep {
+            mantissa.truncate(digits_to_keep);
+        }
+    
+        // adjust exponent so decimal point stays correct
+        let mut exponent = self.exponent + (mantissa_len - mantissa.len() as i32);
+    
+        // remove leading zeros
+        while mantissa.len() > 1 && mantissa.starts_with('0') {
+            mantissa.remove(0);
+            exponent -= 1;
+        }
+        if mantissa.is_empty() {
+            mantissa = "0".to_string();
+            exponent = 0;
+        }
+    
+        Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
+    } 
     pub fn from_f64(value: f64) -> Self {
         if value.is_nan() {
             return Float::new(String::new(), 0, false, NumberKind::NaN);
