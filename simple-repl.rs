@@ -204,6 +204,21 @@ fn main() {
                 continue;
             }
 
+            if op == "int-like" {
+                match acc.clone() {
+                    Number::Int(i) => println!("{} is already an int-like number", i),
+                    Number::Float(f) => {
+                        let int_value = f.is_integer_like();
+                        if int_value {
+                            println!("{} is an int-like number", f);
+                        } else {
+                            println!("{} is not an int-like number", f);
+                        }
+                    }
+                }
+                continue;
+            }
+
             let rhs = match iter.next() {
                 Some(t) => match parse_token(t) {
                     Ok(n) => n,

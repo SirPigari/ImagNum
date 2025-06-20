@@ -591,8 +591,26 @@ impl Float {
         if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
             return false;
         }
-        self.exponent >= 0 && self.mantissa.chars().all(|c| c.is_digit(10)) && !self.mantissa.is_empty()
+    
+        if self.mantissa.is_empty() || !self.mantissa.chars().all(|c| c.is_digit(10)) {
+            return false;
+        }
+    
+        if self.exponent >= 0 {
+            true
+        } else {
+            let frac_len = (-self.exponent) as usize;
+            if frac_len > self.mantissa.len() {
+                return self.mantissa.chars().all(|c| c == '0');
+            }
+    
+            let int_part_len = self.mantissa.len() - frac_len;
+            let frac_part = &self.mantissa[int_part_len..];
+    
+            frac_part.chars().all(|c| c == '0')
+        }
     }
+    
     pub fn to_int(&self) -> Result<Int, i16> {
         if self.kind == NumberKind::NaN {
             return Err(ERR_INVALID_FORMAT);
