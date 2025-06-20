@@ -616,6 +616,13 @@ impl Float {
     pub fn is_infinity(&self) -> bool {
         self.kind == NumberKind::Infinity
     }
+    pub fn make_irrational(&mut self) -> Self {
+        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            return self.clone()
+        }
+        self.kind = NumberKind::Irrational;
+        self.clone()
+    }
 }
 
 fn normalize_int_digits(digits: &str) -> String {
