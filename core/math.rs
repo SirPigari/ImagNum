@@ -309,26 +309,29 @@ fn sub_mantissa(a: &str, b: &str) -> String {
     res.into_iter().collect()
 }
 
-fn align(
-    m1: &str,
-    e1: i32,
-    m2: &str,
-    e2: i32,
-) -> (String, String, i32) {
+fn align(m1: &str, e1: i32, m2: &str, e2: i32) -> (String, String, i32) {
     let target_exp = e1.min(e2);
-    let diff1 = e1 - target_exp;
-    let diff2 = e2 - target_exp;
+    let diff1 = (e1 - target_exp) as usize;
+    let diff2 = (e2 - target_exp) as usize;
 
     let mut nm1 = m1.to_string();
-    for _ in 0..diff1 {
-        nm1.push('0');
-    }
     let mut nm2 = m2.to_string();
-    for _ in 0..diff2 {
-        nm2.push('0');
+
+    nm1.extend(std::iter::repeat('0').take(diff1));
+    nm2.extend(std::iter::repeat('0').take(diff2));
+
+    // pad left so both strings have equal length
+    let max_len = nm1.len().max(nm2.len());
+    while nm1.len() < max_len {
+        nm1.insert(0, '0');
     }
+    while nm2.len() < max_len {
+        nm2.insert(0, '0');
+    }
+
     (nm1, nm2, target_exp)
 }
+
 
 pub fn add_float(
     mant1: String,
@@ -424,7 +427,7 @@ pub fn div_float(
         return Err(ERR_DIV_BY_ZERO);
     }
     
-    let desired_precision = 20;
+    let desired_precision = (mant1.len().max(mant2.len()) + 10) as i32;
 
     let mut numerator = mant1.clone();
     for _ in 0..desired_precision {
