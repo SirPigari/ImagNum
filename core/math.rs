@@ -423,7 +423,7 @@ pub fn div_float(
     if mant2 == "0" {
         return Err(ERR_DIV_BY_ZERO);
     }
-
+    
     let desired_precision = 20;
 
     let mut numerator = mant1.clone();
@@ -479,27 +479,67 @@ fn div_mod_strings(a: &str, b: &str) -> Result<(String, String), i16> {
     if cmp_mantissa(a, b) == std::cmp::Ordering::Less {
         return Ok(("0".to_string(), a.to_string()));
     }
-    let mut remainder = String::new();
+
     let mut quotient = String::new();
+    let mut remainder = String::new();
+
     let mut idx = 0;
     while idx < a.len() {
         remainder.push(a.chars().nth(idx).unwrap());
         while remainder.len() > 1 && remainder.starts_with('0') {
             remainder.remove(0);
         }
+
+        let mut low = 0;
+        let mut high = 9;
         let mut count = 0;
-        while cmp_mantissa(&remainder, b) != std::cmp::Ordering::Less {
-            remainder = sub_mantissa(&remainder, b);
-            count += 1;
+        while low <= high {
+            let mid = (low + high) / 2;
+            let prod = mul_string_digit(b, mid);
+            match cmp_mantissa(&prod, &remainder) {
+                std::cmp::Ordering::Greater => {
+                    high = mid - 1;
+                }
+                _ => {
+                    count = mid;
+                    low = mid + 1;
+                }
+            }
         }
-        quotient.push(std::char::from_digit(count, 10).unwrap());
+
+        let sub = mul_string_digit(b, count);
+        remainder = sub_mantissa(&remainder, &sub);
+
+        quotient.push(std::char::from_digit(count as u32, 10).unwrap());
         idx += 1;
     }
+
     while quotient.len() > 1 && quotient.starts_with('0') {
         quotient.remove(0);
     }
     if remainder.is_empty() {
         remainder = "0".to_string();
     }
+
     Ok((quotient, remainder))
+}
+
+fn mul_string_digit(num: &str, d: u8) -> String {
+    if d == 0 || num == "0" {
+        return "0".to_string();
+    }
+    let mut carry = 0;
+    let mut result = String::new();
+
+    for c in num.chars().rev() {
+        let digit = c.to_digit(10).unwrap() as u8;
+        let prod = digit * d + carry;
+        carry = prod / 10;
+        let rem = prod % 10;
+        result.push((rem + b'0') as char);
+    }
+    if carry > 0 {
+        result.push((carry + b'0') as char);
+    }
+    result.chars().rev().collect()
 }

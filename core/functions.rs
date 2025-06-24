@@ -10,6 +10,10 @@ pub fn create_int(int: &str) -> Int {
     let negative = int.trim().starts_with('-');
     let digits = if negative { &int[1..] } else { int };
 
+    if int.contains('.') {
+        return Int::new(String::new(), negative, NumberKind::NaN);
+    }
+
     let kind = match digits.to_ascii_lowercase().as_str() {
         "nan" => NumberKind::NaN,
         "inf" | "infinity" => {
