@@ -1,6 +1,6 @@
 [package]
 name = "imagnum"
-version = "0.1.21"
+version = "0.1.23"
 edition = "2024"
 authors = ["SirPigari"]
 description = "A Rust library providing versatile numeric types supporting integers and floats designed for the Lucia programming language."
@@ -13,6 +13,7 @@ documentation = "https://docs.rs/imagnum"
 homepage = "https://github.com/SirPigari/imagnum"
 
 [dependencies]
+bigdecimal = "0.4.8"
 once_cell = "1.21.3"
 
 [lib]
