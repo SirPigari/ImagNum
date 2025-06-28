@@ -525,9 +525,8 @@ impl Float {
         }
     
         let mantissa_len = self.mantissa.len() as i32;
-        let point_pos = mantissa_len + self.exponent; // decimal point position relative to mantissa
+        let point_pos = mantissa_len + self.exponent;
     
-        // digits to keep = digits before decimal + decimal_places
         let digits_to_keep = if point_pos > 0 {
             (point_pos as usize) + decimal_places
         } else {
@@ -539,10 +538,8 @@ impl Float {
             mantissa.truncate(digits_to_keep);
         }
     
-        // adjust exponent so decimal point stays correct
         let mut exponent = self.exponent + (mantissa_len - mantissa.len() as i32);
     
-        // remove leading zeros
         while mantissa.len() > 1 && mantissa.starts_with('0') {
             mantissa.remove(0);
             exponent -= 1;
@@ -555,27 +552,7 @@ impl Float {
         Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
     } 
     pub fn from_f64(value: f64) -> Self {
-        if value.is_nan() {
-            return Float::new(String::new(), 0, false, NumberKind::NaN);
-        }
-        if value.is_infinite() {
-            return Float::new(String::new(), 0, value.is_sign_negative(), NumberKind::Infinity);
-        }
-
-        let mut mantissa = value.to_string();
-        let exponent = if mantissa.contains('.') {
-            let parts: Vec<&str> = mantissa.split('.').collect();
-            let integer_part = parts[0];
-            let fractional_part = parts[1];
-            let exp = -(fractional_part.len() as i32);
-            mantissa = integer_part.to_string() + fractional_part;
-            exp
-        } else {
-            0
-        };
-
-        mantissa = normalize_int_digits(&mantissa);
-        Float::new(mantissa, exponent, value.is_sign_negative(), NumberKind::Finite)
+        create_float(&value.to_string())
     }
     pub fn from_str(value: &str) -> Result<Self, i16> {
         if value.is_empty() {
