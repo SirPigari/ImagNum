@@ -26,7 +26,7 @@ pub struct Int {
     pub kind: NumberKind,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Float {
     pub mantissa: String,
     pub exponent: i32,

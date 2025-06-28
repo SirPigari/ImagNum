@@ -94,6 +94,35 @@ impl RemAssign for Int {
     }
 }
 
+impl PartialEq for Float {
+    fn eq(&self, other: &Self) -> bool {
+        if self.kind != other.kind || self.negative != other.negative {
+            return false;
+        }
+
+        let (nm1, exp1) = normalize(&self.mantissa, self.exponent);
+        let (nm2, exp2) = normalize(&other.mantissa, other.exponent);
+
+        nm1 == nm2 && exp1 == exp2
+    }
+}
+
+fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
+    let mut digits = mantissa.trim_start_matches('0').to_string();
+    if digits.is_empty() {
+        return ("0".to_string(), 0);
+    }
+
+    let mut exp = exponent;
+
+    while digits.ends_with('0') {
+        digits.pop();
+        exp += 1;
+    }
+
+    (digits, exp)
+}
+
 impl PartialOrd for Int {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.negative && !other.negative {
@@ -287,16 +316,21 @@ impl Display for Float {
 
             let exp = self.exponent;
             if exp == 0 {
-                write!(f, "{}", mantissa)?;
+                write!(f, "{}.0", mantissa)?;
             } else if exp > 0 {
                 write!(f, "{}{}", mantissa, "0".repeat(exp as usize))?;
+                write!(f, ".0")?;
             } else {
                 let mantissa_len = mantissa.len() as i64;
-                let point_pos = mantissa_len + (exp as i64); // cast to i64
+                let point_pos = mantissa_len + (exp as i64);
 
                 if point_pos > 0 {
                     let (int_part, frac_part) = mantissa.split_at(point_pos as usize);
-                    write!(f, "{}.{}", int_part, frac_part)?;
+                    if frac_part.is_empty() {
+                        write!(f, "{}.0", int_part)?;
+                    } else {
+                        write!(f, "{}.{}", int_part, frac_part)?;
+                    }
                 } else {
                     write!(f, "0.{}{}", "0".repeat((-point_pos) as usize), mantissa)?;
                 }
@@ -312,4 +346,3 @@ impl Display for Float {
         Ok(())
     }
 }
-
