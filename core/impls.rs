@@ -45,10 +45,10 @@ impl Int {
                 self._sub(&Int::new(other.digits.clone(), false, other.kind))
             }
             (true, false) => {
-                let mut res = other._sub(&Int::new(self.digits.clone(), false, self.kind))?;
+                let mut res = other._sub(&Int::new(self.digits.clone(), true, self.kind))?;
                 res.negative = !res.negative;
                 Ok(res)
-            }
+            }            
         }
     }
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
