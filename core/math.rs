@@ -2,7 +2,9 @@
 // String-based arithmetic operations for the ImagNum library.
 // This module provides basic arithmetic operations on strings representing large integers.
 use std::collections::VecDeque;
-use std::cmp::Ordering;
+use bigdecimal::{BigDecimal, Zero};
+use bigdecimal::num_bigint::ToBigInt;
+use std::str::FromStr;
 
 pub const ERR_UNIMPLEMENTED: i16 = -1;
 pub const ERR_INVALID_FORMAT: i16 = 1;
@@ -253,7 +255,7 @@ pub fn sqrt_string(a: &str) -> IntResult<String> {
     Ok((to_string(ans, false), false))
 }
 
-
+#[allow(dead_code)]
 fn normalize(mut mantissa: String, mut exp: i32, negative: bool) -> FloatResult<String> {
     while mantissa.ends_with('0') && mantissa.len() > 1 {
         mantissa.pop();
@@ -265,73 +267,42 @@ fn normalize(mut mantissa: String, mut exp: i32, negative: bool) -> FloatResult<
     Ok((mantissa, exp, negative))
 }
 
-fn cmp_mantissa(a: &str, b: &str) -> Ordering {
-    if a.len() != b.len() {
-        return a.len().cmp(&b.len());
-    }
-    a.cmp(b)
+
+fn to_bigdecimal(mant: &str, exp: i32, neg: bool) -> BigDecimal {
+    let mant_len = mant.len() as i32;
+
+    let decimal_pos = mant_len + exp;
+
+    let s = if decimal_pos <= 0 {
+        let zeros = "0".repeat((-decimal_pos) as usize);
+        format!("0.{}{}", zeros, mant)
+    } else if decimal_pos >= mant_len {
+        let zeros = "0".repeat((decimal_pos - mant_len) as usize);
+        format!("{}{}", mant, zeros)
+    } else {
+        let (int_part, frac_part) = mant.split_at(decimal_pos as usize);
+        format!("{}.{}", int_part, frac_part)
+    };
+
+    let bd = BigDecimal::from_str(&s).unwrap_or_else(|_| BigDecimal::zero());
+    if neg { -bd } else { bd }
 }
 
-fn add_mantissa(a: &str, b: &str) -> String {
-    let mut carry = 0;
-    let mut res = Vec::with_capacity(a.len() + 1);
-    for (da, db) in a.chars().rev().zip(b.chars().rev()) {
-        let sum = da.to_digit(10).unwrap() + db.to_digit(10).unwrap() + carry;
-        carry = sum / 10;
-        res.push((sum % 10).to_string().chars().next().unwrap());
-    }
-    if carry > 0 {
-        res.push('1');
-    }
-    res.reverse();
-    res.into_iter().collect()
+fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool) {
+    let s = bd.normalized().to_string();
+    let neg = s.starts_with('-');
+    let s = s.trim_start_matches('-');
+
+    let (mant, exp) = if let Some(dot) = s.find('.') {
+        let mant = s[..dot].to_string() + &s[dot+1..];
+        let exp = -((s.len() - dot - 1) as i32);
+        (mant.trim_start_matches('0').to_string(), exp)
+    } else {
+        (s.trim_start_matches('0').to_string(), 0)
+    };
+
+    (mant, exp, neg)
 }
-
-fn sub_mantissa(a: &str, b: &str) -> String {
-    let mut borrow = 0;
-    let mut res = Vec::with_capacity(a.len());
-    for (da, db) in a.chars().rev().zip(b.chars().rev()) {
-        let mut d_a = da.to_digit(10).unwrap() as i32 - borrow;
-        let d_b = db.to_digit(10).unwrap() as i32;
-        if d_a < d_b {
-            d_a += 10;
-            borrow = 1;
-        } else {
-            borrow = 0;
-        }
-        let d = d_a - d_b;
-        res.push(std::char::from_digit(d as u32, 10).unwrap());
-    }
-    res.reverse();
-    while res.len() > 1 && res[0] == '0' {
-        res.remove(0);
-    }
-    res.into_iter().collect()
-}
-
-fn align(m1: &str, e1: i32, m2: &str, e2: i32) -> (String, String, i32) {
-    let target_exp = e1.min(e2);
-    let diff1 = (e1 - target_exp) as usize;
-    let diff2 = (e2 - target_exp) as usize;
-
-    let mut nm1 = m1.to_string();
-    let mut nm2 = m2.to_string();
-
-    nm1.extend(std::iter::repeat('0').take(diff1));
-    nm2.extend(std::iter::repeat('0').take(diff2));
-
-    // pad left so both strings have equal length
-    let max_len = nm1.len().max(nm2.len());
-    while nm1.len() < max_len {
-        nm1.insert(0, '0');
-    }
-    while nm2.len() < max_len {
-        nm2.insert(0, '0');
-    }
-
-    (nm1, nm2, target_exp)
-}
-
 
 pub fn add_float(
     mant1: String,
@@ -341,13 +312,10 @@ pub fn add_float(
     exp2: i32,
     neg2: bool,
 ) -> FloatResult<String> {
-    if neg1 == neg2 {
-        let (a, b, exp) = align(&mant1, exp1, &mant2, exp2);
-        let sum = add_mantissa(&a, &b);
-        normalize(sum, exp, neg1)
-    } else {
-        sub_float(mant1, exp1, neg1, mant2, exp2, !neg2)
-    }
+    let a = to_bigdecimal(&mant1, exp1, neg1);
+    let b = to_bigdecimal(&mant2, exp2, neg2);
+    let sum = a + b;
+    Ok(from_bigdecimal(&sum))
 }
 
 pub fn sub_float(
@@ -358,22 +326,10 @@ pub fn sub_float(
     exp2: i32,
     neg2: bool,
 ) -> FloatResult<String> {
-    if neg1 != neg2 {
-        add_float(mant1, exp1, neg1, mant2, exp2, !neg2)
-    } else {
-        let (a, b, exp) = align(&mant1, exp1, &mant2, exp2);
-        match cmp_mantissa(&a, &b) {
-            std::cmp::Ordering::Equal => Ok(("0".to_string(), 0, false)),
-            std::cmp::Ordering::Greater => {
-                let diff = sub_mantissa(&a, &b);
-                normalize(diff, exp, neg1)
-            }
-            std::cmp::Ordering::Less => {
-                let diff = sub_mantissa(&b, &a);
-                normalize(diff, exp, !neg1)
-            }
-        }
-    }
+    let a = to_bigdecimal(&mant1, exp1, neg1);
+    let b = to_bigdecimal(&mant2, exp2, neg2);
+    let diff = a - b;
+    Ok(from_bigdecimal(&diff))
 }
 
 pub fn mul_float(
@@ -384,35 +340,10 @@ pub fn mul_float(
     exp2: i32,
     neg2: bool,
 ) -> FloatResult<String> {
-    let n1 = mant1.len();
-    let n2 = mant2.len();
-    let mut res = vec![0; n1 + n2];
-    let a: Vec<_> = mant1.chars().rev().map(|c| c.to_digit(10).unwrap()).collect();
-    let b: Vec<_> = mant2.chars().rev().map(|c| c.to_digit(10).unwrap()).collect();
-
-    for i in 0..n1 {
-        for j in 0..n2 {
-            res[i + j] += a[i] * b[j];
-        }
-    }
-
-    for i in 0..res.len() - 1 {
-        let c = res[i] / 10;
-        res[i] %= 10;
-        res[i + 1] += c;
-    }
-
-    while res.len() > 1 && *res.last().unwrap() == 0 {
-        res.pop();
-    }
-
-    res.reverse();
-    let mant: String = res.iter().map(|d| std::char::from_digit(*d, 10).unwrap()).collect();
-
-    let exp = exp1 + exp2;
-    let negative = neg1 ^ neg2;
-
-    normalize(mant, exp, negative)
+    let a = to_bigdecimal(&mant1, exp1, neg1);
+    let b = to_bigdecimal(&mant2, exp2, neg2);
+    let prod = a * b;
+    Ok(from_bigdecimal(&prod))
 }
 
 pub fn div_float(
@@ -423,25 +354,18 @@ pub fn div_float(
     exp2: i32,
     neg2: bool,
 ) -> FloatResult<String> {
-    if mant2 == "0" {
+    let a = to_bigdecimal(&mant1, exp1, neg1);
+    let b = to_bigdecimal(&mant2, exp2, neg2);
+    if b.is_zero() {
         return Err(ERR_DIV_BY_ZERO);
     }
-    
-    let desired_precision = (mant1.len().max(mant2.len()) + 10) as i32;
 
-    let mut numerator = mant1.clone();
-    for _ in 0..desired_precision {
-        numerator.push('0');
-    }
-    let denominator = mant2.clone();
+    let scale = (mant1.len() + mant2.len()) as i64 + 5;
+    let quotient = (a / b).with_scale(scale);
 
-    let (quotient, _remainder) = div_mod_strings(&numerator, &denominator)?;
-
-    let exp = exp1 - exp2 - desired_precision;
-    let negative = neg1 ^ neg2;
-
-    normalize(quotient, exp, negative)
+    Ok(from_bigdecimal(&quotient))
 }
+
 
 pub fn mod_float(
     mant1: String,
@@ -454,95 +378,13 @@ pub fn mod_float(
     if mant2 == "0" {
         return Err(ERR_DIV_BY_ZERO);
     }
-    let (q, exp_q, neg_q) = div_float(mant1.clone(), exp1, neg1, mant2.clone(), exp2, neg2)?;
-    // floor q: truncate fractional digits (exp_q < 0 means decimals)
-    let int_part = if exp_q >= 0 {
-        (q.clone(), exp_q, neg_q)
-    } else {
-        let cutoff = (q.len() as i32 + exp_q) as usize;
-        if cutoff <= 0 {
-            ("0".to_string(), 0, false)
-        } else {
-            (q[..cutoff].to_string(), 0, neg_q)
-        }
-    };
+    let a = to_bigdecimal(&mant1, exp1, neg1);
+    let b = to_bigdecimal(&mant2, exp2, neg2);
 
-    let (mul_m, mul_e, mul_neg) = mul_float(mant2, exp2, neg2, int_part.0, int_part.1, int_part.2)?;
-    let (res_m, res_e, res_neg) = sub_float(mant1, exp1, neg1, mul_m, mul_e, mul_neg)?;
-    Ok((res_m, res_e, res_neg))
-}
+    let div = &a / &b;
+    let div_floor = BigDecimal::from(div.with_scale(0).to_bigint().unwrap());
 
-fn div_mod_strings(a: &str, b: &str) -> Result<(String, String), i16> {
-    if b == "0" {
-        return Err(ERR_DIV_BY_ZERO);
-    }
-    if a == "0" {
-        return Ok(("0".to_string(), "0".to_string()));
-    }
-    if cmp_mantissa(a, b) == std::cmp::Ordering::Less {
-        return Ok(("0".to_string(), a.to_string()));
-    }
+    let res = a - b * div_floor;
 
-    let mut quotient = String::new();
-    let mut remainder = String::new();
-
-    let mut idx = 0;
-    while idx < a.len() {
-        remainder.push(a.chars().nth(idx).unwrap());
-        while remainder.len() > 1 && remainder.starts_with('0') {
-            remainder.remove(0);
-        }
-
-        let mut low = 0;
-        let mut high = 9;
-        let mut count = 0;
-        while low <= high {
-            let mid = (low + high) / 2;
-            let prod = mul_string_digit(b, mid);
-            match cmp_mantissa(&prod, &remainder) {
-                std::cmp::Ordering::Greater => {
-                    high = mid - 1;
-                }
-                _ => {
-                    count = mid;
-                    low = mid + 1;
-                }
-            }
-        }
-
-        let sub = mul_string_digit(b, count);
-        remainder = sub_mantissa(&remainder, &sub);
-
-        quotient.push(std::char::from_digit(count as u32, 10).unwrap());
-        idx += 1;
-    }
-
-    while quotient.len() > 1 && quotient.starts_with('0') {
-        quotient.remove(0);
-    }
-    if remainder.is_empty() {
-        remainder = "0".to_string();
-    }
-
-    Ok((quotient, remainder))
-}
-
-fn mul_string_digit(num: &str, d: u8) -> String {
-    if d == 0 || num == "0" {
-        return "0".to_string();
-    }
-    let mut carry = 0;
-    let mut result = String::new();
-
-    for c in num.chars().rev() {
-        let digit = c.to_digit(10).unwrap() as u8;
-        let prod = digit * d + carry;
-        carry = prod / 10;
-        let rem = prod % 10;
-        result.push((rem + b'0') as char);
-    }
-    if carry > 0 {
-        result.push((carry + b'0') as char);
-    }
-    result.chars().rev().collect()
+    Ok(from_bigdecimal(&res))
 }
