@@ -569,7 +569,7 @@ impl Float {
             return false;
         }
     
-        if self.mantissa.is_empty() || !self.mantissa.chars().all(|c| c.is_digit(10)) {
+        if (self.mantissa.is_empty() && !(self.exponent >= 0)) || !self.mantissa.chars().all(|c| c.is_digit(10)) {
             return false;
         }
     
