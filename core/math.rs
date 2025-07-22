@@ -293,16 +293,32 @@ fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool) {
     let neg = s.starts_with('-');
     let s = s.trim_start_matches('-');
 
-    let (mant, exp) = if let Some(dot) = s.find('.') {
-        let mant = s[..dot].to_string() + &s[dot+1..];
-        let exp = -((s.len() - dot - 1) as i32);
-        (mant.trim_start_matches('0').to_string(), exp)
+    if s == "0" || s.is_empty() {
+        return ("0".to_string(), 0, false);
+    }
+
+    let parts: Vec<&str> = s.split('E').collect();
+
+    let (base, exp_part) = if parts.len() == 2 {
+        (parts[0], parts[1])
     } else {
-        (s.trim_start_matches('0').to_string(), 0)
+        (s, "0")
     };
 
-    (mant, exp, neg)
+    let exp_from_e: i32 = exp_part.parse().unwrap_or(0);
+
+    let (mant, exp) = if let Some(dot) = base.find('.') {
+        let mantissa = base[..dot].to_string() + &base[dot + 1..];
+        let exp_decimal = -((base.len() - dot - 1) as i32);
+        (mantissa.trim_start_matches('0').to_string(), exp_decimal)
+    } else {
+        (base.trim_start_matches('0').to_string(), 0)
+    };
+
+    let final_exp = exp + exp_from_e;
+    (mant, final_exp, neg)
 }
+
 
 pub fn add_float(
     mant1: String,
@@ -329,6 +345,7 @@ pub fn sub_float(
     let a = to_bigdecimal(&mant1, exp1, neg1);
     let b = to_bigdecimal(&mant2, exp2, neg2);
     let diff = a - b;
+    dbg!(&diff);
     Ok(from_bigdecimal(&diff))
 }
 
