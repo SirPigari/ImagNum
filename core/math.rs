@@ -345,7 +345,6 @@ pub fn sub_float(
     let a = to_bigdecimal(&mant1, exp1, neg1);
     let b = to_bigdecimal(&mant2, exp2, neg2);
     let diff = a - b;
-    dbg!(&diff);
     Ok(from_bigdecimal(&diff))
 }
 

@@ -120,8 +120,13 @@ fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
         exp += 1;
     }
 
+    if digits.is_empty() {
+        return ("0".to_string(), 0);
+    }
+
     (digits, exp)
 }
+
 
 impl PartialOrd for Int {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -259,7 +264,9 @@ impl RemAssign for Float {
 }
 
 impl PartialOrd for Float {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use std::cmp::Ordering;
+
         if self.negative && !other.negative {
             return Some(Ordering::Less);
         }
@@ -268,35 +275,28 @@ impl PartialOrd for Float {
         }
         let sign = if self.negative { -1 } else { 1 };
 
-        // fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
-        //     let trimmed = mantissa.trim_start_matches('0');
-        //     if trimmed.is_empty() {
-        //         ("0".to_string(), 0)
-        //     } else {
-        //         let zeros_trimmed = mantissa.len() - trimmed.len();
-        //         (trimmed.to_string(), exponent - zeros_trimmed as i32)
-        //     }
-        // }
-
         let (mut self_man, self_exp) = normalize(&self.mantissa, self.exponent);
         let (mut other_man, other_exp) = normalize(&other.mantissa, other.exponent);
 
+        // Pad zeros on the LEFT to align exponents
         if self_exp > other_exp {
             let diff = (self_exp - other_exp) as usize;
-            other_man.push_str(&"0".repeat(diff));
+            other_man = format!("{}{}", "0".repeat(diff), other_man);
         } else if other_exp > self_exp {
             let diff = (other_exp - self_exp) as usize;
-            self_man.push_str(&"0".repeat(diff));
+            self_man = format!("{}{}", "0".repeat(diff), self_man);
         }
 
+        // Now pad zeros on the RIGHT to equalize mantissa lengths
         let max_len = self_man.len().max(other_man.len());
         if self_man.len() < max_len {
-            self_man = format!("{}{}", "0".repeat(max_len - self_man.len()), self_man);
+            self_man = format!("{}{}", self_man, "0".repeat(max_len - self_man.len()));
         }
         if other_man.len() < max_len {
-            other_man = format!("{}{}", "0".repeat(max_len - other_man.len()), other_man);
+            other_man = format!("{}{}", other_man, "0".repeat(max_len - other_man.len()));
         }
 
+        // Compare digit by digit
         for (a, b) in self_man.chars().zip(other_man.chars()) {
             if a != b {
                 let cmp = a.cmp(&b);
