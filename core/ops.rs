@@ -266,20 +266,35 @@ impl PartialOrd for Float {
         if !self.negative && other.negative {
             return Some(Ordering::Greater);
         }
-
         let sign = if self.negative { -1 } else { 1 };
 
-        let exp_cmp = self.exponent.cmp(&other.exponent);
-        if exp_cmp != Ordering::Equal {
-            return Some(if sign == 1 { exp_cmp } else { exp_cmp.reverse() });
+        fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
+            let trimmed = mantissa.trim_start_matches('0');
+            if trimmed.is_empty() {
+                ("0".to_string(), 0)
+            } else {
+                let zeros_trimmed = mantissa.len() - trimmed.len();
+                (trimmed.to_string(), exponent - zeros_trimmed as i32)
+            }
         }
 
-        let self_man = self.mantissa.trim_start_matches('0');
-        let other_man = other.mantissa.trim_start_matches('0');
+        let (mut self_man, self_exp) = normalize(&self.mantissa, self.exponent);
+        let (mut other_man, other_exp) = normalize(&other.mantissa, other.exponent);
 
-        let len_cmp = self_man.len().cmp(&other_man.len());
-        if len_cmp != Ordering::Equal {
-            return Some(if sign == 1 { len_cmp } else { len_cmp.reverse() });
+        if self_exp > other_exp {
+            let diff = (self_exp - other_exp) as usize;
+            other_man.push_str(&"0".repeat(diff));
+        } else if other_exp > self_exp {
+            let diff = (other_exp - self_exp) as usize;
+            self_man.push_str(&"0".repeat(diff));
+        }
+
+        let max_len = self_man.len().max(other_man.len());
+        if self_man.len() < max_len {
+            self_man = format!("{}{}", "0".repeat(max_len - self_man.len()), self_man);
+        }
+        if other_man.len() < max_len {
+            other_man = format!("{}{}", "0".repeat(max_len - other_man.len()), other_man);
         }
 
         for (a, b) in self_man.chars().zip(other_man.chars()) {
@@ -288,7 +303,6 @@ impl PartialOrd for Float {
                 return Some(if sign == 1 { cmp } else { cmp.reverse() });
             }
         }
-
         Some(Ordering::Equal)
     }
 }
