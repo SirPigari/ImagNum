@@ -100,6 +100,9 @@ impl Int {
         Ok(Int::new(digits, negative, NumberKind::Finite))
     }
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
+        if exponent.negative {
+            return Err(ERR_INVALID_FORMAT);
+        }
         let (digits, sign_flipped) = pow_strings(&self.digits, &exponent.digits)?;
         let digits = normalize_int_digits(&digits);
         let negative = if self.negative && is_string_odd(&exponent.digits) {
@@ -371,7 +374,6 @@ impl Float {
             ));
         }
     
-        // Check mantissa length and exponent limits to avoid overflow converting to f64
         if self.mantissa.len() > 17 || self.exponent > 308 || self.exponent < -308 {
             return Err(ERR_NUMBER_TOO_LARGE);
         }
@@ -413,12 +415,17 @@ impl Float {
     
         let digits = 15;
         let scaled_mant = (mant * 10f64.powi(digits)).round() as u64;
-        let mantissa_str = scaled_mant.to_string();
+        let mut mantissa_str = scaled_mant.to_string();
+        let mut final_exp = exp - digits;
     
-        let final_exp = exp - digits;
+        while mantissa_str.ends_with('0') && mantissa_str.len() > 1 {
+            mantissa_str.pop();
+            final_exp += 1;
+        }
     
         Ok(Float::new(mantissa_str, final_exp, negative, NumberKind::Finite))
     }
+    
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
         self._pow(exponent).or_else(|_| {
             if self.kind == NumberKind::NaN || exponent.kind == NumberKind::NaN {
@@ -632,6 +639,32 @@ impl Float {
         }
         self.kind = NumberKind::Irrational;
         self.clone()
+    }
+
+    pub fn normalize(&mut self) -> &mut Self{
+        let trimmed = self.mantissa.trim_start_matches('0');
+        let trimmed_len = trimmed.len();
+
+        if trimmed_len == 0 {
+            self.mantissa = "0".to_string();
+            self.exponent = 0;
+            self.negative = false;
+        } else {
+            let zeros_removed = self.mantissa.len() - trimmed_len;
+            self.mantissa = trimmed.to_string();
+            self.exponent += zeros_removed as i32;
+        }
+        if self.mantissa.is_empty() {
+            self.mantissa = "0".to_string();
+            self.exponent = 0;
+            self.negative = false;
+        }
+        if self.mantissa == "0" {
+            self.exponent = 0;
+            self.negative = false;
+            self.kind = NumberKind::Finite;
+        }
+        self
     }
 }
 
