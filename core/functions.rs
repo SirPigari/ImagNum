@@ -1,4 +1,7 @@
-use crate::foundation::{Float, Int, NumberKind};
+use crate::foundation::{Float, Int};
+use num_bigint::BigInt;
+use bigdecimal::BigDecimal;
+use std::str::FromStr;
 use crate::math::{
     ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO,
     ERR_NEGATIVE_RESULT, ERR_NUMBER_TOO_LARGE,
@@ -7,83 +10,68 @@ use crate::math::{
 };
 
 pub fn create_int(int: &str) -> Int {
-    let negative = int.trim().starts_with('-');
-    let digits = if negative { &int[1..] } else { int };
-
-    if int.contains('.') {
-        return Int::new(String::new(), negative, NumberKind::NaN);
+    let s = int.trim();
+    if s.is_empty() {
+        return Int::new();
     }
 
-    let kind = match digits.to_ascii_lowercase().as_str() {
-        "nan" => NumberKind::NaN,
-        "inf" | "infinity" => {
-            if negative {
-                NumberKind::NegInfinity
-            } else {
-                NumberKind::Infinity
-            }
-        }
-        _ => NumberKind::Finite,
-    };
+    // Integers shouldn't accept NaN/Infinity — those are floats. Return 0 for those inputs.
+    let low = s.to_ascii_lowercase();
+    if low == "nan" || low == "inf" || low == "infinity" || low == "-inf" || low == "-infinity" {
+        return Int::new();
+    }
 
-    let digits = match kind {
-        NumberKind::NaN | NumberKind::Infinity | NumberKind::NegInfinity => String::new(),
-        _ => digits.to_string(),
-    };
+    // Reject floats passed as ints (contain '.') -> return zero Int
+    if s.contains('.') {
+        return Int::new();
+    }
 
-    Int::new(digits, negative, kind)
+    // Parse into BigInt; try small optimizations later
+    match BigInt::from_str(s) {
+        Ok(b) => Int::Big(b),
+        Err(_) => Int::new(),
+    }
 }
 
 pub fn create_float(float: &str) -> Float {
-    let negative = float.trim().starts_with('-');
-    let trimmed = if negative { &float[1..] } else { float }.to_ascii_lowercase();
-
-    let kind = if trimmed == "nan" {
-        NumberKind::NaN
-    } else if trimmed == "inf" || trimmed == "infinity" {
-        if negative {
-            NumberKind::NegInfinity
-        } else {
-            NumberKind::Infinity
-        }
-    } else if trimmed.ends_with('i') {
-        NumberKind::Imaginary
-    } else {
-        NumberKind::Finite
-    };
-
-    if matches!(kind, NumberKind::NaN | NumberKind::Infinity | NumberKind::NegInfinity) {
-        return Float::new(String::new(), 0, negative, kind);
+    let s = float.trim();
+    if s.is_empty() {
+        return Float::Big(BigDecimal::from(0));
     }
 
-    let (base, exp_part) = if let Some(e_index) = trimmed.find('e') {
-        let (b, e) = trimmed.split_at(e_index);
-        (b, e[1..].parse::<i32>().unwrap_or(0))
-    } else {
-        (trimmed.as_str(), 0)
-    };
-
-    let mut mantissa = String::new();
-
-    for c in base.chars() {
-        if c != '.' {
-            mantissa.push(c);
-        }
+    let lower = s.to_ascii_lowercase();
+    if lower == "nan" {
+        return Float::NaN;
+    }
+    if lower == "inf" || lower == "infinity" {
+        return Float::Infinity;
+    }
+    if lower == "-inf" || lower == "-infinity" {
+        return Float::NegInfinity;
     }
 
-    let decimal_index = base.find('.').unwrap_or(base.len());
-    let digits_after_dot = base.len().saturating_sub(decimal_index + 1);
-    let exponent = exp_part - digits_after_dot as i32;
+    // Imaginary numbers ending with i -> treat as complex (0 + 1i * value)
+    if lower.ends_with('i') {
+        let without_i = &s[..s.len()-1];
+        // parse the coefficient; default 1
+        let coeff = if without_i.is_empty() || without_i == "+" { "1" } else if without_i == "-" { "-1" } else { without_i };
+        let bd = BigDecimal::from_str(coeff).unwrap_or_else(|_| BigDecimal::from(0));
+        let zero = Float::Big(BigDecimal::from(0));
+        let imag = Float::Big(bd);
+        return Float::Complex(Box::new(zero), Box::new(imag));
+    }
 
-    Float::new(mantissa, exponent, negative, kind)
+    // Otherwise parse as BigDecimal
+    match BigDecimal::from_str(s) {
+        Ok(bd) => Float::Big(bd),
+        Err(_) => Float::NaN,
+    }
 }
 
 pub fn create_imaginary() -> Float {
-    Float::new(String::new(), 0, false, NumberKind::Imaginary)
-}
-
-pub fn create_imaginary_int() -> Int {
-    Int::new(String::new(), false, NumberKind::Imaginary)
+    let zero = BigDecimal::from(0);
+    let one = BigDecimal::from(1);
+    Float::Complex(Box::new(Float::Big(zero)), Box::new(Float::Big(one)))
 }
 
 pub fn get_error_message(code: i16) -> &'static str {
@@ -110,4 +98,18 @@ pub fn get_error_code(message: &str) -> i16 {
         "square root of a negative number" => ERR_NEGATIVE_SQRT,
         _ => 0, // Unknown error
     }
+}
+
+#[macro_export]
+macro_rules! int {
+    ($val:expr) => {
+        create_int($val)
+    };
+}
+
+#[macro_export]
+macro_rules! float {
+    ($val:expr) => {
+        create_float($val)
+    };
 }

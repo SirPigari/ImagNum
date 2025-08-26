@@ -1,175 +1,295 @@
-use crate::foundation::{Float, Int, NumberKind};
-#[allow(unused_imports)]
+use crate::foundation::{Float, Int, FloatKind};
+use crate::compat::{int_to_string, float_to_parts, float_is_zero, int_to_parts, make_float_from_parts, make_int_from_parts, int_is_nan, int_is_infinite, float_is_negative, float_kind};
+use num_bigint::BigInt;
+use bigdecimal::BigDecimal;
+use std::str::FromStr;
 use crate::math::{
-    add_strings, sub_strings, mul_strings, div_strings, mod_strings, pow_strings, sqrt_string, is_string_odd,
+    add_strings, sub_strings, mul_strings, div_strings, mod_strings, pow_strings, is_string_odd,
     add_float, sub_float, mul_float, div_float, mod_float,
+    // transcendental float helpers
+    sin_float, cos_float, tan_float, ln_float, exp_float, log10_float, floor_float, ceil_float,
+    // sqrt helpers
+    sqrt_float, sqrt_int,
+    // transcendental int wrappers
+    sin_int, cos_int, tan_int, ln_int, exp_int, floor_int, ceil_int,
     ERR_UNIMPLEMENTED, ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO, ERR_NEGATIVE_RESULT, ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_INFINITE_RESULT
 };
-use crate::functions::{create_float, create_int, create_imaginary};
+use crate::functions::{create_float, create_int};
 use std::fmt::{Binary, Octal, LowerHex};
 use std::hash::{Hash, Hasher};
 
+// use compat helpers (int_to_string / float_to_parts) from crate::compat
+
 impl Int {
     pub fn to_float(&self) -> Result<Float, i16> {
-        if self.kind == NumberKind::NaN {
-            return Err(ERR_INVALID_FORMAT);
+        // Convert integer into Float::Big
+        match self {
+            Int::Big(bi) => {
+                match BigDecimal::from_str(&bi.to_string()) {
+                    Ok(bd) => Ok(Float::Big(bd)),
+                    Err(_) => Err(ERR_INVALID_FORMAT),
+                }
+            }
+            Int::Small(_) => {
+                // Use string conversion for small ints
+                let s = int_to_string(self);
+                match BigDecimal::from_str(&s) {
+                    Ok(bd) => Ok(Float::Big(bd)),
+                    Err(_) => Err(ERR_INVALID_FORMAT),
+                }
+            }
         }
-        if self.kind == NumberKind::Infinity {
-            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
-        }
-        if self.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
-        }
-        if self.digits.is_empty() || self.digits == "0" {
-            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
-        }
-
-        let mantissa = self.digits.clone();
-        let exponent = 0;
-
-        Ok(Float::new(mantissa, exponent, self.negative, NumberKind::Finite))
     }
     pub fn _add(&self, other: &Self) -> Result<Self, i16> {
-        match (self.negative, other.negative) {
+        let (_sd, sneg, _sk) = int_to_parts(self);
+        let (_od, oneg, _ok) = int_to_parts(other);
+        match (sneg, oneg) {
             (false, false) => {
-                let (digits, _) = add_strings(&self.digits, &other.digits)?;
+                let (digits, _) = add_strings(&int_to_string(self), &int_to_string(other))?;
                 let digits = normalize_int_digits(&digits);
-                Ok(Int::new(digits, false, NumberKind::Finite))
+                match BigInt::from_str(&digits) {
+                    Ok(bi) => Ok(Int::Big(bi)),
+                    Err(_) => Ok(Int::new()),
+                }
             }
             (true, true) => {
-                let (digits, _) = add_strings(&self.digits, &other.digits)?;
+                let (digits, _) = add_strings(&int_to_string(self), &int_to_string(other))?;
                 let digits = normalize_int_digits(&digits);
-                Ok(Int::new(digits, true, NumberKind::Finite))
+                match BigInt::from_str(&digits) {
+                    Ok(mut bi) => { bi = -bi; Ok(Int::Big(bi)) },
+                    Err(_) => Ok(Int::new()),
+                }
             }
             (false, true) => {
-                self._sub(&Int::new(other.digits.clone(), false, other.kind))
+                let (odigits, oneg, _k) = int_to_parts(other);
+                let other_int = match BigInt::from_str(&odigits) {
+                    Ok(bi) => if oneg { Int::Big(-bi) } else { Int::Big(bi) },
+                    Err(_) => Int::new(),
+                };
+                self._sub(&other_int)
             }
             (true, false) => {
-                let mut res = other._sub(&Int::new(self.digits.clone(), true, self.kind))?;
-                res.negative = !res.negative;
-                Ok(res)
-            }            
+                let (sd, sneg, _k) = int_to_parts(self);
+                let s_int = match BigInt::from_str(&sd) {
+                    Ok(mut bi) => { if sneg { bi = -bi }; Int::Big(bi) },
+                    Err(_) => Int::new(),
+                };
+                let res = other._sub(&s_int)?;
+                Ok(-res)
+            }
         }
     }
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
-        match (self.negative, other.negative) {
+        let (sd, sneg, _sk) = int_to_parts(self);
+        let (od, oneg, _ok) = int_to_parts(other);
+        match (sneg, oneg) {
             (false, false) => {
-                let (digits, sign_flipped) = sub_strings(&self.digits, &other.digits)?;
+                let (digits, sign_flipped) = sub_strings(&sd, &od)?;
                 let digits = normalize_int_digits(&digits);
-                let negative = if digits == "0" {
-                    false
-                } else {
-                    sign_flipped
-                };
-                Ok(Int::new(digits, negative, NumberKind::Finite))
+                let negative = if digits == "0" { false } else { sign_flipped };
+                Ok(make_int_from_parts(digits, negative, FloatKind::Finite))
             }
             (true, true) => {
-                let res = Int::new(other.digits.clone(), false, other.kind)._sub(&Int::new(self.digits.clone(), false, self.kind))?;
-                Ok(Int {
-                    digits: res.digits,
-                    negative: res.negative,
-                    kind: NumberKind::Finite,
-                })
+                // -(A) - -(B) = B - A
+                let left = make_int_from_parts(od.clone(), false, FloatKind::Finite);
+                let right = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
+                let res = left._sub(&right)?;
+                // result sign already correct
+                Ok(res)
             }
             (false, true) => {
-                self._add(&Int::new(other.digits.clone(), false, other.kind))
+                let other_pos = make_int_from_parts(od.clone(), false, FloatKind::Finite);
+                self._add(&other_pos)
             }
             (true, false) => {
-                let mut res = Int::new(self.digits.clone(), false, self.kind)._add(other)?;
-                res.negative = true;
-                Ok(res)
+                let self_pos = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
+                let res = self_pos._add(other)?;
+                // flip sign
+                    Ok(-res)
             }
         }
     }
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
-        let (digits, sign_flipped) = mul_strings(&self.digits, &other.digits)?;
+        let (digits, sign_flipped) = mul_strings(&int_to_string(self), &int_to_string(other))?;
         let digits = normalize_int_digits(&digits);
-        let negative = self.negative ^ other.negative ^ sign_flipped;
-        Ok(Int::new(digits, negative, NumberKind::Finite))
+        let (_d, sneg, _k) = int_to_parts(self);
+        let (_od, oneg, _k2) = int_to_parts(other);
+        let negative = sneg ^ oneg ^ sign_flipped;
+        match BigInt::from_str(&digits) {
+            Ok(mut bi) => { if negative { bi = -bi }; Ok(Int::Big(bi)) },
+            Err(_) => Ok(Int::new()),
+        }
     }
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
-        let (digits, sign_flipped) = div_strings(&self.digits, &other.digits)?;
+        let (digits, sign_flipped) = div_strings(&int_to_string(self), &int_to_string(other))?;
         let digits = normalize_int_digits(&digits);
-        let negative = self.negative ^ other.negative ^ sign_flipped;
-        Ok(Int::new(digits, negative, NumberKind::Finite))
+        let (_d, sneg, _k) = int_to_parts(self);
+        let (_od, oneg, _k2) = int_to_parts(other);
+        let negative = sneg ^ oneg ^ sign_flipped;
+        match BigInt::from_str(&digits) {
+            Ok(mut bi) => { if negative { bi = -bi }; Ok(Int::Big(bi)) },
+            Err(_) => Ok(Int::new()),
+        }
     }
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
-        let (digits, sign_flipped) = mod_strings(&self.digits, &other.digits)?;
+        let (digits, sign_flipped) = mod_strings(&int_to_string(self), &int_to_string(other))?;
         let digits = normalize_int_digits(&digits);
-        let negative = self.negative ^ sign_flipped;
-        Ok(Int::new(digits, negative, NumberKind::Finite))
+        let (_d, sneg, _k) = int_to_parts(self);
+        let negative = sneg ^ sign_flipped;
+        match BigInt::from_str(&digits) {
+            Ok(mut bi) => { if negative { bi = -bi }; Ok(Int::Big(bi)) },
+            Err(_) => Ok(Int::new()),
+        }
     }
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
-        if exponent.negative {
+        let (ed, eneg, _ek) = int_to_parts(exponent);
+        if eneg {
             return Err(ERR_INVALID_FORMAT);
         }
-        let (digits, sign_flipped) = pow_strings(&self.digits, &exponent.digits)?;
+        let (sd, sneg, _sk) = int_to_parts(self);
+        let (digits, sign_flipped) = pow_strings(&sd, &ed)?;
         let digits = normalize_int_digits(&digits);
-        let negative = if self.negative && is_string_odd(&exponent.digits) {
-            true ^ sign_flipped
-        } else {
-            sign_flipped
-        };
-        Ok(Int::new(digits, negative, NumberKind::Finite))
+        let negative = if sneg && is_string_odd(&ed) { true ^ sign_flipped } else { sign_flipped };
+        Ok(make_int_from_parts(digits, negative, FloatKind::Finite))
     }
     pub fn sqrt(&self) -> Result<Float, i16> {
-        if self.negative {
-            return Ok(create_imaginary());
+        // For negative integers, return imaginary complex
+        // Convert to BigDecimal and take sqrt via Float::Big
+    let (mant, neg, _k) = int_to_parts(self);
+    let (m2, e2, neg2, is_irr) = sqrt_int(mant, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(m2, e2, neg2, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(m2, e2, neg2, FloatKind::Finite))
         }
-        if self.digits.is_empty() || self.digits == "0" {
-            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
-        }
-        if self.digits == "1" {
-            return Ok(Float::new("1".to_string(), 0, false, NumberKind::Finite));
-        }
-        let self_float = self.to_float()?;
-        self_float.sqrt()
     }
     pub fn abs(&self) -> Self {
-        Int::new(self.digits.clone(), false, self.kind)
+    let (digits, _neg, _k) = int_to_parts(self);
+    make_int_from_parts(digits, false, FloatKind::Finite)
+    }
+
+    // Transcendental wrappers for Int: return Float (may be irrational)
+    pub fn sin(&self) -> Result<Float, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (m,e,neg2, is_irr) = sin_int(digits, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
+        }
+    }
+    pub fn cos(&self) -> Result<Float, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (m,e,neg2, is_irr) = cos_int(digits, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
+        }
+    }
+    pub fn tan(&self) -> Result<Float, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (m,e,neg2, is_irr) = tan_int(digits, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
+        }
+    }
+    pub fn ln(&self) -> Result<Float, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (m,e,neg2, is_irr) = ln_int(digits, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
+        }
+    }
+    pub fn exp(&self) -> Result<Float, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (m,e,neg2, is_irr) = exp_int(digits, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
+        }
+    }
+    pub fn floor(&self) -> Result<Self, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (d, n) = floor_int(digits, neg)?;
+        Ok(make_int_from_parts(d, n, FloatKind::Finite))
+    }
+    pub fn ceil(&self) -> Result<Self, i16> {
+        let (digits, neg, _k) = int_to_parts(self);
+        let (d, n) = ceil_int(digits, neg)?;
+        Ok(make_int_from_parts(d, n, FloatKind::Finite))
     }
 
     pub fn is_zero(&self) -> bool {
-        self.digits.is_empty() || self.digits == "0"
+    let (digits, _neg, _k) = int_to_parts(self);
+    digits.is_empty() || digits == "0"
     }
     pub fn to_usize(&self) -> Result<usize, i16> {
-        if self.kind == NumberKind::NaN {
+        // check for invalid or infinite via compat
+        if int_is_nan(self) {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+        if int_is_infinite(self) {
             return Err(ERR_INFINITE_RESULT);
         }
-        if self.negative || self.digits.is_empty() || self.digits == "0" {
+        let (digits, negative, _k) = int_to_parts(self);
+        if negative || digits.is_empty() || digits == "0" {
             return Err(ERR_NEGATIVE_RESULT);
         }
 
-        let value: usize = self.digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+        let value: usize = digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
         Ok(value)
     }
     pub fn to_i64(&self) -> Result<i64, i16> {
-        if self.kind == NumberKind::NaN {
+        if int_is_nan(self) {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+        if int_is_infinite(self) {
             return Err(ERR_INFINITE_RESULT);
         }
 
-        if self.digits.is_empty() || self.digits == "0" {
+        let (digits, negative, _k) = int_to_parts(self);
+        if digits.is_empty() || digits == "0" {
             return Ok(0 as i64);
         }
 
-        let value = if self.negative {
-            -self.digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+        let value = if negative {
+            -digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
         } else {
-            self.digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+            digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
+        };
+        Ok(value)
+    }
+    pub fn to_i128(&self) -> Result<i128, i16> {
+        if int_is_nan(self) {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if int_is_infinite(self) {
+            return Err(ERR_INFINITE_RESULT);
+        }
+
+        let (digits, negative, _k) = int_to_parts(self);
+        if digits.is_empty() || digits == "0" {
+            return Ok(0 as i128);
+        }
+
+        let value = if negative {
+            -digits.parse::<i128>().map_err(|_| ERR_INVALID_FORMAT)?
+        } else {
+            digits.parse::<i128>().map_err(|_| ERR_INVALID_FORMAT)?
         };
         Ok(value)
     }
     pub fn from_i64(value: i64) -> Self {
         if value < 0 {
-            Int::new(value.abs().to_string(), true, NumberKind::Finite)
+            make_int_from_parts(value.abs().to_string(), true, FloatKind::Finite)
         } else {
-            Int::new(value.to_string(), false, NumberKind::Finite)
+            make_int_from_parts(value.to_string(), false, FloatKind::Finite)
         }
     }
     pub fn from_str(value: &str) -> Result<Self, i16> {
@@ -177,260 +297,240 @@ impl Int {
             return Err(ERR_INVALID_FORMAT);
         }
         let int = create_int(value);
-        if int.kind == NumberKind::NaN || int.kind == NumberKind::Infinity || int.kind == NumberKind::NegInfinity {
+    if int_is_nan(&int) || int_is_infinite(&int) {
             return Err(ERR_INVALID_FORMAT);
         }
         Ok(int)
     }
     pub fn is_nan(&self) -> bool {
-        self.kind == NumberKind::NaN
+    int_is_nan(self)
     }
     pub fn is_infinity(&self) -> bool {
-        self.kind == NumberKind::Infinity
+    int_is_infinite(self)
     }
 }
 
 impl Float {
     pub fn to_f64(&self) -> Result<f64, i16> {
-        if self.kind == NumberKind::NaN {
+        let (mantissa, exponent, negative, kind) = float_to_parts(self);
+        if kind == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity {
+        if kind == FloatKind::Infinity {
             return Ok(f64::INFINITY);
         }
-        if self.kind == NumberKind::NegInfinity {
+        if kind == FloatKind::NegInfinity {
             return Ok(f64::NEG_INFINITY);
         }
 
-        let mut mantissa = self.mantissa.clone();
-        if self.negative {
-            mantissa.insert(0, '-');
+        let mut mant = mantissa.clone();
+        if negative {
+            mant.insert(0, '-');
         }
 
-        let exponent = self.exponent;
+        let exponent = exponent;
         let value: f64 = match exponent {
-            0 => mantissa.parse().map_err(|_| ERR_INVALID_FORMAT)?,
+            0 => mant.parse().map_err(|_| ERR_INVALID_FORMAT)?,
             _ => {
-                let base: f64 = mantissa.parse().map_err(|_| ERR_INVALID_FORMAT)?;
+                let base: f64 = mant.parse().map_err(|_| ERR_INVALID_FORMAT)?;
                 base * 10f64.powi(exponent)
             }
         };
-        
+
         Ok(value)
     }
     pub fn sqrt(&self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN {
+        let kind = float_kind(self);
+        if kind == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity {
-            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        if kind == FloatKind::Infinity {
+            return Ok(Float::Infinity);
         }
-        if self.kind == NumberKind::NegInfinity || self.negative {
+        if kind == FloatKind::NegInfinity || float_is_negative(self) {
             return Err(ERR_NEGATIVE_SQRT);
         }
-        let self_f64 = self.to_f64()?;
-        if self_f64 < 0.0 {
-            return Ok(create_imaginary());
+    // Use math helper to get truncated, possibly irrational result
+    let (m,e,neg,_k) = float_to_parts(self);
+    let (m,e,neg,is_irr) = sqrt_float(m, e, neg)?;
+        if is_irr {
+            return Ok(make_float_from_parts(m, e, neg, FloatKind::Irrational));
         }
-        if self_f64 == 0.0 {
-            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
-        }
-        let sqrt_value = self_f64.sqrt();
-        let mut mantissa = sqrt_value.to_string();
-        let exponent = if mantissa.contains('.') {
-            let parts: Vec<&str> = mantissa.split('.').collect();
-            let integer_part = parts[0];
-            let fractional_part = parts[1];
-            let exponent = -(fractional_part.len() as i32);
-            mantissa = integer_part.to_string() + fractional_part;
-            exponent
-        } else {
-            0
-        };
-        mantissa = normalize_int_digits(&mantissa);
-        Ok(Float::new(mantissa, exponent, false, NumberKind::Finite))
+        Ok(make_float_from_parts(m, e, neg, FloatKind::Finite))
     }
     pub fn _add(&self, other: &Self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+        if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity && other.kind == NumberKind::Infinity {
-            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
+            return Ok(Float::Infinity);
         }
-        if self.kind == NumberKind::NegInfinity && other.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
+        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity {
+            return Ok(Float::NegInfinity);
         }
-        if (self.kind == NumberKind::Infinity && other.kind == NumberKind::NegInfinity) ||
-           (self.kind == NumberKind::NegInfinity && other.kind == NumberKind::Infinity) {
+        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity) ||
+           (float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::Infinity) {
             return Err(ERR_INFINITE_RESULT);
         }
     
-        let (mantissa, exponent, negative) = add_float(
-            self.mantissa.clone(), self.exponent, self.negative,
-            other.mantissa.clone(), other.exponent, other.negative,
-        )?;
-    
-        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+        let (mantissa, exponent, negative, _k) = {
+            let (m1,e1,n1,_k1) = float_to_parts(self);
+            let (m2,e2,n2,_k2) = float_to_parts(other);
+            let (m, e, neg) = add_float(m1, e1, n1, m2, e2, n2)?;
+            (m, e, neg, FloatKind::Finite)
+        };
+        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
     }
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+        if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity && other.kind == NumberKind::Infinity {
-            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+        if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
+            return Ok(make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite));
         }
-        if self.kind == NumberKind::NegInfinity && other.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("0".to_string(), 0, true, NumberKind::Finite));
+        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity {
+            return Ok(make_float_from_parts("0".to_string(), 0, true, FloatKind::Finite));
         }
-        if (self.kind == NumberKind::Infinity && other.kind == NumberKind::NegInfinity) ||
-           (self.kind == NumberKind::NegInfinity && other.kind == NumberKind::Infinity) {
+        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity) ||
+           (float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::Infinity) {
             return Err(ERR_INFINITE_RESULT);
         }
     
-        let (mantissa, exponent, negative) = sub_float(
-            self.mantissa.clone(), self.exponent, self.negative,
-            other.mantissa.clone(), other.exponent, other.negative,
-        )?;
-    
-        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+        let (mantissa, exponent, negative, _k) = {
+            let (m1,e1,n1,_) = float_to_parts(self);
+            let (m2,e2,n2,_) = float_to_parts(other);
+            let (m, e, neg) = sub_float(m1, e1, n1, m2, e2, n2)?;
+            (m, e, neg, FloatKind::Finite)
+        };
+        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
     }
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+        if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity || other.kind == NumberKind::Infinity {
-            return Ok(Float::new("Infinity".to_string(), 0, self.negative ^ other.negative, NumberKind::Infinity));
+        if float_kind(self) == FloatKind::Infinity || float_kind(other) == FloatKind::Infinity {
+            let neg = float_is_negative(self) ^ float_is_negative(other);
+            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
         }
-        if self.kind == NumberKind::NegInfinity || other.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("Infinity".to_string(), 0, !(self.negative ^ other.negative), NumberKind::NegInfinity));
+        if float_kind(self) == FloatKind::NegInfinity || float_kind(other) == FloatKind::NegInfinity {
+            let neg = float_is_negative(self) ^ float_is_negative(other);
+            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
         }
 
-        let (mantissa, exponent, negative) = mul_float(
-            self.mantissa.clone(), self.exponent, self.negative,
-            other.mantissa.clone(), other.exponent, other.negative,
-        )?;
-
-        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+        let (m1,e1,n1,_) = float_to_parts(self);
+        let (m2,e2,n2,_) = float_to_parts(other);
+        let (mantissa, exponent, negative) = mul_float(m1, e1, n1, m2, e2, n2)?;
+        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
     }
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+        if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if other.mantissa.is_empty() || other.mantissa == "0" && other.exponent == 0 && self.exponent == 0 {
+        if float_is_zero(other) {
             return Err(ERR_DIV_BY_ZERO);
         }
-        if self.kind == NumberKind::Infinity && other.kind == NumberKind::Infinity {
-            return Ok(Float::new("NaN".to_string(), 0, false, NumberKind::NaN));
+        if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
+            return Ok(Float::NaN);
         }
-        if self.kind == NumberKind::NegInfinity && other.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("NaN".to_string(), 0, false, NumberKind::NaN));
+        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity {
+            return Ok(Float::NaN);
         }
-        if (self.kind == NumberKind::Infinity && other.kind == NumberKind::NegInfinity) ||
-           (self.kind == NumberKind::NegInfinity && other.kind == NumberKind::Infinity) {
-            return Ok(Float::new("0".to_string(), 0, self.negative ^ other.negative, NumberKind::Finite));
+        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity) ||
+           (float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::Infinity) {
+            let neg = float_is_negative(self) ^ float_is_negative(other);
+            return Ok(make_float_from_parts("0".to_string(), 0, neg, FloatKind::Finite));
         }
 
-        let (mantissa, exponent, negative) = div_float(
-            self.mantissa.clone(), self.exponent, self.negative,
-            other.mantissa.clone(), other.exponent, other.negative,
-        )?;
-
-        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+        let (m1,e1,n1,_) = float_to_parts(self);
+        let (m2,e2,n2,_) = float_to_parts(other);
+        let (mantissa, exponent, negative) = div_float(m1, e1, n1, m2, e2, n2)?;
+        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
     }
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN || other.kind == NumberKind::NaN {
+        if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if other.mantissa.is_empty() || other.mantissa == "0" && other.exponent == 0 && self.exponent == 0 {
+        if float_is_zero(other) {
             return Err(ERR_DIV_BY_ZERO);
         }
-        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("NaN".to_string(), 0, false, NumberKind::NaN));
+        if float_kind(self) == FloatKind::Infinity || float_kind(self) == FloatKind::NegInfinity {
+            return Ok(Float::NaN);
         }
 
-        let (mantissa, exponent, negative) = mod_float(
-            self.mantissa.clone(), self.exponent, self.negative,
-            other.mantissa.clone(), other.exponent, other.negative,
-        )?;
-
-        Ok(Float::new(mantissa, exponent, negative, NumberKind::Finite))
+        let (m1,e1,n1,_) = float_to_parts(self);
+        let (m2,e2,n2,_) = float_to_parts(other);
+        let (mantissa, exponent, negative) = mod_float(m1, e1, n1, m2, e2, n2)?;
+        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
     }
     pub fn _pow(&self, exponent: &Self) -> Result<Self, i16> {
-        if self.kind == NumberKind::NaN || exponent.kind == NumberKind::NaN {
+        if float_kind(self) == FloatKind::NaN || float_kind(exponent) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if self.kind == NumberKind::Infinity && exponent.mantissa == "0" {
-            return Ok(Float::new("1".to_string(), 0, false, NumberKind::Finite));
+        if float_is_zero(exponent) {
+            // x^0 == 1
+        let (_m,_e,_,_) = float_to_parts(self);
+            return Ok(make_float_from_parts("1".to_string(), 0, false, FloatKind::Finite));
         }
-        if self.kind == NumberKind::NegInfinity && exponent.mantissa == "0" {
-            return Ok(Float::new("1".to_string(), 0, true, NumberKind::Finite));
+        if float_kind(self) == FloatKind::Infinity || float_kind(self) == FloatKind::NegInfinity {
+            let neg = float_is_negative(self) ^ float_is_negative(exponent);
+            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
         }
-        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
-            return Ok(Float::new(
-                "Infinity".to_string(),
-                0,
-                self.negative ^ exponent.negative,
-                NumberKind::Infinity,
-            ));
-        }
-    
-        if self.mantissa.len() > 17 || self.exponent > 308 || self.exponent < -308 {
+
+    let (m_self, e_self, neg_self, _k1) = float_to_parts(self);
+    let (m_exp, e_exp, neg_exp, _k2) = float_to_parts(exponent);
+
+        if m_self.len() > 17 || e_self > 308 || e_self < -308 {
             return Err(ERR_NUMBER_TOO_LARGE);
         }
-        if exponent.mantissa.len() > 17 || exponent.exponent > 308 || exponent.exponent < -308 {
+        if m_exp.len() > 17 || e_exp > 308 || e_exp < -308 {
             return Err(ERR_NUMBER_TOO_LARGE);
         }
-    
-        let base_sign = if self.negative { -1.0 } else { 1.0 };
-        let base_val: f64 = self.mantissa.parse::<f64>().unwrap_or(0.0);
-        let base_f64 = base_sign * base_val * 10f64.powi(self.exponent);
-    
-        let exp_sign = if exponent.negative { -1.0 } else { 1.0 };
-        let exp_val: f64 = exponent.mantissa.parse::<f64>().unwrap_or(0.0);
-        let exponent_f64 = exp_sign * exp_val * 10f64.powi(exponent.exponent);
-    
+
+        let base_sign = if neg_self { -1.0 } else { 1.0 };
+        let base_val: f64 = m_self.parse::<f64>().unwrap_or(0.0);
+        let base_f64 = base_sign * base_val * 10f64.powi(e_self);
+
+        let exp_sign = if neg_exp { -1.0 } else { 1.0 };
+        let exp_val: f64 = m_exp.parse::<f64>().unwrap_or(0.0);
+        let exponent_f64 = exp_sign * exp_val * 10f64.powi(e_exp);
+
         let pow_res = base_f64.powf(exponent_f64);
-    
+
         if pow_res.is_nan() {
             return Err(ERR_INVALID_FORMAT);
         }
         if pow_res.is_infinite() {
-            return Ok(Float::new(
-                "Infinity".to_string(),
-                0,
-                pow_res.is_sign_negative(),
-                NumberKind::Infinity,
-            ));
+            return Ok(if pow_res.is_sign_negative() { Float::NegInfinity } else { Float::Infinity });
         }
-    
+
         let negative = pow_res.is_sign_negative();
         let abs_res = pow_res.abs();
-    
+
         if abs_res == 0.0 {
-            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
+            return Ok(make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite));
         }
-    
+
         let exp = abs_res.log10().floor() as i32;
         let mant = abs_res / 10f64.powi(exp);
-    
+
         let digits = 15;
         let scaled_mant = (mant * 10f64.powi(digits)).round() as u64;
         let mut mantissa_str = scaled_mant.to_string();
         let mut final_exp = exp - digits;
-    
+
         while mantissa_str.ends_with('0') && mantissa_str.len() > 1 {
             mantissa_str.pop();
             final_exp += 1;
         }
-    
-        Ok(Float::new(mantissa_str, final_exp, negative, NumberKind::Finite))
+
+        Ok(make_float_from_parts(mantissa_str, final_exp, negative, FloatKind::Finite))
     }
     
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
         self._pow(exponent).or_else(|_| {
-            if self.kind == NumberKind::NaN || exponent.kind == NumberKind::NaN {
+            if float_kind(self) == FloatKind::NaN || float_kind(exponent) == FloatKind::NaN {
                 Err(ERR_INVALID_FORMAT)
-            } else if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+            } else if float_kind(self) == FloatKind::Infinity || float_kind(self) == FloatKind::NegInfinity {
                 Err(ERR_INFINITE_RESULT)
             } else {
                 Err(ERR_UNIMPLEMENTED)
@@ -438,68 +538,125 @@ impl Float {
         })
     }
     pub fn abs(&self) -> Self {
-        Float::new(self.mantissa.clone(), self.exponent, false, self.kind)
+    let (_m,_e,_,k) = float_to_parts(self);
+    make_float_from_parts(_m, _e, false, k)
+    }
+
+    // Transcendental wrappers for Float
+    pub fn sin(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg, is_irr) = sin_float(m, e, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+        }
+    }
+    pub fn cos(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg, is_irr) = cos_float(m, e, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+        }
+    }
+    pub fn tan(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg, is_irr) = tan_float(m, e, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+        }
+    }
+    pub fn ln(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg, is_irr) = ln_float(m, e, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+        }
+    }
+    pub fn exp(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg, is_irr) = exp_float(m, e, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+        }
+    }
+    pub fn log(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg, is_irr) = log10_float(m, e, neg)?;
+        if is_irr {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
+        } else {
+            Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+        }
+    }
+    pub fn floor(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg) = floor_float(m, e, neg)?;
+        Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
+    }
+    pub fn ceil(&self) -> Result<Self, i16> {
+        let (m,e,neg,_k) = float_to_parts(self);
+        let (rm, re, rneg) = ceil_float(m, e, neg)?;
+        Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
     }
     
     pub fn from_int(int: &Int) -> Result<Self, i16> {
-        if int.kind == NumberKind::NaN {
+        if int_is_nan(int) {
             return Err(ERR_INVALID_FORMAT);
         }
-        if int.kind == NumberKind::Infinity {
-            return Ok(Float::new("Infinity".to_string(), 0, false, NumberKind::Infinity));
+        if int_is_infinite(int) {
+            // compat: map to float infinity
+        let (_d, neg, _k) = int_to_parts(int);
+            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
         }
-        if int.kind == NumberKind::NegInfinity {
-            return Ok(Float::new("Infinity".to_string(), 0, true, NumberKind::NegInfinity));
+        let (mantissa, neg, _k) = int_to_parts(int);
+        if mantissa.is_empty() || mantissa == "0" {
+            return Ok(make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite));
         }
-        if int.digits.is_empty() || int.digits == "0" {
-            return Ok(Float::new("0".to_string(), 0, false, NumberKind::Finite));
-        }
-
-        let mantissa = int.digits.clone();
-        let exponent = 0;
-
-        Ok(Float::new(mantissa, exponent, int.negative, NumberKind::Finite))
+        Ok(make_float_from_parts(mantissa, 0, neg, FloatKind::Finite))
     }
     pub fn is_zero(&self) -> bool {
-        self.mantissa.is_empty() || self.mantissa == "0" && self.exponent == 0
+    float_is_zero(self)
     }
     pub fn round(&self, precision: usize) -> Self {
-        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+        let k = float_kind(self);
+        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
             return self.clone();
         }
         if self.is_zero() {
-            return Float::new("0".to_string(), 0, false, NumberKind::Finite);
+            return make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite);
         }
-    
-        let old_len = self.mantissa.len();
-    
-        let mut mantissa = self.mantissa.clone();
-        let mut exponent = self.exponent;
-    
+
+        let (mut mantissa, mut exponent, neg, _k) = {
+            let (m,e,n,k1) = float_to_parts(self);
+            (m, e, n, k1)
+        };
+
+        let old_len = mantissa.len();
         let mantissa_len = old_len as i32;
         let point_pos = mantissa_len + exponent;
-    
-        let digits_to_keep = if point_pos > 0 {
-            (point_pos as usize) + precision
-        } else {
-            precision
-        };
-    
+
+        let digits_to_keep = if point_pos > 0 { (point_pos as usize) + precision } else { precision };
+
         if mantissa.len() > digits_to_keep {
             let round_digit = mantissa.chars().nth(digits_to_keep).unwrap_or('0').to_digit(10).unwrap_or(0);
             mantissa.truncate(digits_to_keep);
-    
             if round_digit >= 5 {
                 let mut digits: Vec<u8> = mantissa.bytes().map(|b| b - b'0').collect();
-    
                 let mut carry = 1;
                 for d in digits.iter_mut().rev() {
                     let sum = *d + carry;
                     *d = sum % 10;
                     carry = sum / 10;
-                    if carry == 0 {
-                        break;
-                    }
+                    if carry == 0 { break; }
                 }
                 if carry > 0 {
                     digits.insert(0, carry);
@@ -507,10 +664,9 @@ impl Float {
                 }
                 mantissa = digits.into_iter().map(|d| (d + b'0') as char).collect();
             }
-    
             exponent += old_len as i32 - mantissa.len() as i32;
         }
-    
+
         while mantissa.len() > 1 && mantissa.starts_with('0') {
             mantissa.remove(0);
             exponent -= 1;
@@ -519,34 +675,30 @@ impl Float {
             mantissa = "0".to_string();
             exponent = 0;
         }
-    
-        Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
+
+        make_float_from_parts(mantissa, exponent, neg, FloatKind::Finite)
     }
     
     pub fn truncate(&self, decimal_places: usize) -> Self {
-        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
+        let k = float_kind(self);
+        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
             return self.clone();
         }
         if self.is_zero() {
-            return Float::new("0".to_string(), 0, false, NumberKind::Finite);
+            return make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite);
         }
-    
-        let mantissa_len = self.mantissa.len() as i32;
-        let point_pos = mantissa_len + self.exponent;
-    
-        let digits_to_keep = if point_pos > 0 {
-            (point_pos as usize) + decimal_places
-        } else {
-            decimal_places
-        };
-    
-        let mut mantissa = self.mantissa.clone();
+
+        let (mut mantissa, exponent, neg, _k) = float_to_parts(self);
+        let mantissa_len = mantissa.len() as i32;
+        let point_pos = mantissa_len + exponent;
+
+        let digits_to_keep = if point_pos > 0 { (point_pos as usize) + decimal_places } else { decimal_places };
+
         if mantissa.len() > digits_to_keep {
             mantissa.truncate(digits_to_keep);
         }
-    
-        let mut exponent = self.exponent + (mantissa_len - mantissa.len() as i32);
-    
+        let mut exponent = exponent + (mantissa_len - mantissa.len() as i32);
+
         while mantissa.len() > 1 && mantissa.starts_with('0') {
             mantissa.remove(0);
             exponent -= 1;
@@ -555,8 +707,8 @@ impl Float {
             mantissa = "0".to_string();
             exponent = 0;
         }
-    
-        Float::new(mantissa, exponent, self.negative, NumberKind::Finite)
+
+        make_float_from_parts(mantissa, exponent, neg, FloatKind::Finite)
     } 
     pub fn from_f64(value: f64) -> Self {
         create_float(&value.to_string())
@@ -566,104 +718,74 @@ impl Float {
             return Err(ERR_INVALID_FORMAT);
         }
         let float = create_float(value);
-        if float.kind == NumberKind::NaN || float.kind == NumberKind::Infinity || float.kind == NumberKind::NegInfinity {
+    let k = float_kind(&float);
+    if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
             return Err(ERR_INVALID_FORMAT);
         }
         Ok(float)
     }
     pub fn is_integer_like(&self) -> bool {
-        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
-            return false;
-        }
-    
-        if (self.mantissa.is_empty() && !(self.exponent >= 0)) || !self.mantissa.chars().all(|c| c.is_digit(10)) {
-            return false;
-        }
-    
-        if self.exponent >= 0 {
-            true
-        } else {
-            let frac_len = (-self.exponent) as usize;
-            if frac_len > self.mantissa.len() {
-                return self.mantissa.chars().all(|c| c == '0');
-            }
-    
-            let int_part_len = self.mantissa.len() - frac_len;
-            let frac_part = &self.mantissa[int_part_len..];
-    
-            frac_part.chars().all(|c| c == '0')
-        }
+    let k = float_kind(self);
+    if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity { return false; }
+    let (mant, exp, _neg, _k) = float_to_parts(self);
+    if (mant.is_empty() && !(exp >= 0)) || !mant.chars().all(|c| c.is_digit(10)) { return false; }
+    if exp >= 0 { return true; }
+    let frac_len = (-exp) as usize;
+    if frac_len > mant.len() { return mant.chars().all(|c| c == '0'); }
+    let int_part_len = mant.len() - frac_len;
+    let frac_part = &mant[int_part_len..];
+    frac_part.chars().all(|c| c == '0')
     }
     
     pub fn to_int(&self) -> Result<Int, i16> {
-        if self.kind == NumberKind::NaN {
-            return Err(ERR_INVALID_FORMAT);
+        if float_to_parts(self).3 == FloatKind::NaN { return Err(ERR_INVALID_FORMAT); }
+        let k = float_kind(self);
+        if k == FloatKind::Infinity || k == FloatKind::NegInfinity { return Err(ERR_INFINITE_RESULT); }
+        if self.is_zero() { return Ok(make_int_from_parts("0".to_string(), false, FloatKind::Finite)); }
+        if !self.is_integer_like() { return Err(ERR_INVALID_FORMAT); }
+
+        let (mut digits, exp, neg, _k) = float_to_parts(self);
+        if exp < 0 {
+            let e = (-exp) as usize;
+            if e >= digits.len() { digits = "0".to_string(); } else { digits.truncate(digits.len() - e); }
+        } else if exp > 0 {
+            digits.push_str(&"0".repeat(exp as usize));
         }
-        if self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
-            return Err(ERR_INFINITE_RESULT);
-        }
-        if self.is_zero() {
-            return Ok(Int::new("0".to_string(), false, NumberKind::Finite));
-        }
-        if !self.is_integer_like() {
-            return Err(ERR_INVALID_FORMAT);
-        }
-    
-        let mut digits = self.mantissa.clone();
-    
-        if self.exponent < 0 {
-            let exp = (-self.exponent) as usize;
-            if exp >= digits.len() {
-                digits = "0".to_string();
-            } else {
-                digits.truncate(digits.len() - exp);
-            }
-        } else if self.exponent > 0 {
-            digits.push_str(&"0".repeat(self.exponent as usize));
-        }
-    
         let digits = normalize_int_digits(&digits);
-    
-        Ok(Int::new(digits, self.negative, NumberKind::Finite))
+        Ok(make_int_from_parts(digits, neg, FloatKind::Finite))
     }
     
     pub fn is_nan(&self) -> bool {
-        self.kind == NumberKind::NaN
+    float_to_parts(self).3 == FloatKind::NaN
     }
     pub fn is_infinity(&self) -> bool {
-        self.kind == NumberKind::Infinity
+    float_to_parts(self).3 == FloatKind::Infinity
     }
     pub fn make_irrational(&mut self) -> Self {
-        if self.kind == NumberKind::NaN || self.kind == NumberKind::Infinity || self.kind == NumberKind::NegInfinity {
-            return self.clone()
-        }
-        self.kind = NumberKind::Irrational;
-        self.clone()
+        let k = float_kind(self);
+        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity { return self.clone(); }
+        let (m,e,neg,_) = float_to_parts(self);
+        let newf = make_float_from_parts(m, e, neg, FloatKind::Irrational);
+        *self = newf.clone();
+        newf
     }
 
     pub fn normalize(&mut self) -> &mut Self{
-        let trimmed = self.mantissa.trim_start_matches('0');
+        let (mut mant, mut exp, neg, _k) = float_to_parts(self);
+        let trimmed = mant.trim_start_matches('0');
         let trimmed_len = trimmed.len();
-
         if trimmed_len == 0 {
-            self.mantissa = "0".to_string();
-            self.exponent = 0;
-            self.negative = false;
+            mant = "0".to_string();
+            exp = 0;
         } else {
-            let zeros_removed = self.mantissa.len() - trimmed_len;
-            self.mantissa = trimmed.to_string();
-            self.exponent += zeros_removed as i32;
+            let zeros_removed = mant.len() - trimmed_len;
+            mant = trimmed.to_string();
+            exp += zeros_removed as i32;
         }
-        if self.mantissa.is_empty() {
-            self.mantissa = "0".to_string();
-            self.exponent = 0;
-            self.negative = false;
-        }
-        if self.mantissa == "0" {
-            self.exponent = 0;
-            self.negative = false;
-            self.kind = NumberKind::Finite;
-        }
+        if mant.is_empty() { mant = "0".to_string(); exp = 0; }
+        if mant == "0" { exp = 0; }
+        let newf = make_float_from_parts(mant, exp, neg, FloatKind::Finite);
+        *self = newf;
         self
     }
 }
@@ -694,48 +816,36 @@ impl From<i64> for Int {
 
 impl Binary for Int {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = if self.negative { "-" } else { "" };
-        match self.kind {
-            NumberKind::Finite => {
-                if let Ok(num) = self.digits.parse::<i128>() {
-                    write!(f, "{}{:b}", prefix, num)
-                } else {
-                    Err(std::fmt::Error)
-                }
-            }
-            _ => Err(std::fmt::Error),
+        let (digits, negative, _k) = int_to_parts(self);
+        let prefix = if negative { "-" } else { "" };
+        if let Ok(num) = digits.parse::<i128>() {
+            write!(f, "{}{:b}", prefix, num)
+        } else {
+            Err(std::fmt::Error)
         }
     }
 }
 
 impl Octal for Int {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = if self.negative { "-" } else { "" };
-        match self.kind {
-            NumberKind::Finite => {
-                if let Ok(num) = self.digits.parse::<i128>() {
-                    write!(f, "{}{:o}", prefix, num)
-                } else {
-                    Err(std::fmt::Error)
-                }
-            }
-            _ => Err(std::fmt::Error),
+        let (digits, negative, _k) = int_to_parts(self);
+        let prefix = if negative { "-" } else { "" };
+        if let Ok(num) = digits.parse::<i128>() {
+            write!(f, "{}{:o}", prefix, num)
+        } else {
+            Err(std::fmt::Error)
         }
     }
 }
 
 impl LowerHex for Int {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = if self.negative { "-" } else { "" };
-        match self.kind {
-            NumberKind::Finite => {
-                if let Ok(num) = self.digits.parse::<i128>() {
-                    write!(f, "{}{:x}", prefix, num)
-                } else {
-                    Err(std::fmt::Error)
-                }
-            }
-            _ => Err(std::fmt::Error),
+        let (digits, negative, _k) = int_to_parts(self);
+        let prefix = if negative { "-" } else { "" };
+        if let Ok(num) = digits.parse::<i128>() {
+            write!(f, "{}{:x}", prefix, num)
+        } else {
+            Err(std::fmt::Error)
         }
     }
 }
@@ -760,18 +870,19 @@ impl LowerHex for Float {
 
 impl Hash for Int {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.digits.hash(state);
-        self.negative.hash(state);
-        self.kind.hash(state);
+    let (digits, negative, _k) = int_to_parts(self);
+    digits.hash(state);
+    negative.hash(state);
     }
 }
 
 impl Hash for Float {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.mantissa.hash(state);
-        self.exponent.hash(state);
-        self.negative.hash(state);
-        self.kind.hash(state);
+    let (mant, exp, neg, k) = float_to_parts(self);
+    mant.hash(state);
+    exp.hash(state);
+    neg.hash(state);
+    k.hash(state);
     }
 }
 

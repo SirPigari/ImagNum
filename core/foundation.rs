@@ -1,15 +1,14 @@
 use once_cell::sync::Lazy;
+use bigdecimal::BigDecimal;
+use num_bigint::BigInt;
+use std::str::FromStr;
 
-pub static NAN_INT: Lazy<Int> = Lazy::new(|| Int { digits: String::new(), negative: false, kind: NumberKind::NaN });
-pub static NAN_FLOAT: Lazy<Float> = Lazy::new(|| Float { mantissa: String::new(), exponent: 0, negative: false, kind: NumberKind::NaN });
-pub static INFINITY_FLOAT: Lazy<Float> = Lazy::new(|| Float { mantissa: String::new(), exponent: 0, negative: false, kind: NumberKind::Infinity });
-pub static INFINITY_INT: Lazy<Int> = Lazy::new(|| Int { digits: String::new(), negative: false, kind: NumberKind::Infinity });
-pub static NEG_INFINITY_FLOAT: Lazy<Float> = Lazy::new(|| Float { mantissa: String::new(), exponent: 0, negative: true, kind: NumberKind::NegInfinity });
-pub static NEG_INFINITY_INT: Lazy<Int> = Lazy::new(|| Int { digits: String::new(), negative: true, kind: NumberKind::NegInfinity });
+pub static NAN: Lazy<Float> = Lazy::new(|| Float::NaN);
+pub static INFINITY: Lazy<Float> = Lazy::new(|| Float::Infinity);
+pub static NEG_INFINITY: Lazy<Float> = Lazy::new(|| Float::NegInfinity);
 
-#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash, Copy)]
-pub enum NumberKind {
+pub enum FloatKind {
     NaN,
     Infinity,
     NegInfinity,
@@ -19,29 +18,53 @@ pub enum NumberKind {
     Complex,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Int {
-    pub digits: String,
-    pub negative: bool,
-    pub kind: NumberKind,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash, Copy)]
+pub enum SmallInt {
+    I8(i8),
+    U8(u8),
+    I16(i16),
+    U16(u16),
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+    I128(i128),
+    U128(u128),
+    USize(usize),
+    ISize(isize),
 }
 
-#[derive(Debug, Clone)]
-pub struct Float {
-    pub mantissa: String,
-    pub exponent: i32,
-    pub negative: bool,
-    pub kind: NumberKind,
+#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
+pub enum SmallFloat {
+    F32(f32),
+    F64(f64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Int {
+    Big(BigInt),
+    Small(SmallInt),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Float {
+    Small(SmallFloat),
+    Big(BigDecimal),
+    Irrational(BigDecimal),
+    Complex(Box<Float>, Box<Float>),
+    NaN,
+    Infinity,
+    NegInfinity,
 }
 
 impl Int {
-    pub fn new(digits: String, negative: bool, kind: NumberKind) -> Self {
-        Self { digits, negative, kind }
+    pub fn new() -> Self {
+        Self::Big(BigInt::from(0))
     }
 }
 
 impl Float {
-    pub fn new(mantissa: String, exponent: i32, negative: bool, kind: NumberKind) -> Self {
-        Self { mantissa, exponent, negative, kind }
+    pub fn new() -> Self {
+        Self::Big(BigDecimal::from_str("0").unwrap())
     }
 }
