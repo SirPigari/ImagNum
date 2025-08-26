@@ -143,7 +143,7 @@ fn to_bigdecimal(mant: &str, exp: i32, neg: bool) -> BigDecimal {
     if neg { -bd } else { bd }
 }
 
-fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool) {
+pub fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool) {
     let s = bd.normalized().to_string();
     let neg = s.starts_with('-');
     let s = s.trim_start_matches('-');
@@ -176,7 +176,7 @@ fn truncate_bd_to_decimals(bd: &BigDecimal, decimals: usize) -> BigDecimal {
 // Parse a BigDecimal (string form) into a rational numerator/denominator pair
 // by interpreting the decimal representation: e.g. "1.25" -> (125, 100)
 #[allow(dead_code)]
-fn bigdecimal_to_fraction(bd: &BigDecimal) -> (BigInt, BigInt) {
+pub fn bigdecimal_to_fraction(bd: &BigDecimal) -> (BigInt, BigInt) {
     // Use normalized string to avoid scientific notation surprises
     let s = bd.normalized().to_string();
     let mut lower = s;

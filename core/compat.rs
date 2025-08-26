@@ -33,6 +33,10 @@ pub fn float_to_parts(f: &Float) -> (String, i32, bool, FloatKind) {
             let (m, e, neg, _k) = from_bigdecimal(bd);
             (m, e, neg, FloatKind::Irrational)
         }
+        Float::Recurring(bd) => {
+            let (m, e, neg, _k) = from_bigdecimal(bd);
+            (m, e, neg, FloatKind::Recurring)
+        }
         Float::Small(s) => match s {
             SmallFloat::F32(v) => {
                 let s = v.to_string();
@@ -88,7 +92,7 @@ fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool, FloatKind) {
 
 pub fn float_is_zero(f: &Float) -> bool {
     match f {
-        Float::Big(bd) | Float::Irrational(bd) => {
+        Float::Big(bd) | Float::Irrational(bd) | Float::Recurring(bd) => {
             let (m, _e, _neg, _k) = from_bigdecimal(bd);
             m == "0"
         }
@@ -176,7 +180,7 @@ pub fn make_float_from_parts(
             }
         }
         FloatKind::NegInfinity => Float::NegInfinity,
-        FloatKind::Irrational | FloatKind::Finite => {
+        FloatKind::Irrational | FloatKind::Finite | FloatKind::Recurring => {
             // Build BigDecimal from mantissa and exponent: mantissa * 10^exponent
             // mantissa is digits without decimal point
             let mut s = mantissa;
@@ -193,6 +197,8 @@ pub fn make_float_from_parts(
                 let bd = BigDecimal::new(bi, scale);
                 if kind == FloatKind::Irrational {
                     Float::Irrational(bd)
+                } else if kind == FloatKind::Recurring {
+                    Float::Recurring(bd)
                 } else {
                     Float::Big(bd)
                 }
@@ -207,6 +213,8 @@ pub fn make_float_from_parts(
                     Ok(bd) => {
                         if kind == FloatKind::Irrational {
                             Float::Irrational(bd)
+                        } else if kind == FloatKind::Recurring {
+                            Float::Recurring(bd)
                         } else {
                             Float::Big(bd)
                         }

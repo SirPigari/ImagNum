@@ -4,6 +4,7 @@ use crate::compat::{
 };
 use crate::foundation::{Float, FloatKind, Int};
 use crate::functions::{create_float, create_int};
+use crate::math::from_bigdecimal;
 use crate::math::{
     ERR_DIV_BY_ZERO,
     ERR_INFINITE_RESULT,
@@ -46,7 +47,8 @@ use crate::math::{
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
-use num_traits::ToPrimitive;
+use num_integer::Integer;
+use num_traits::{One, Signed, ToPrimitive, Zero};
 use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -447,17 +449,22 @@ impl Float {
             return Err(ERR_INFINITE_RESULT);
         }
 
-        let (mantissa, exponent, negative, _k) = {
-            let (m1, e1, n1, _k1) = float_to_parts(self);
-            let (m2, e2, n2, _k2) = float_to_parts(other);
-            let (m, e, neg) = add_float(m1, e1, n1, m2, e2, n2)?;
-            (m, e, neg, FloatKind::Finite)
+        let (m1, e1, n1, _k1) = float_to_parts(self);
+        let (m2, e2, n2, _k2) = float_to_parts(other);
+        let (mantissa, exponent, negative) = add_float(m1.clone(), e1, n1, m2.clone(), e2, n2)?;
+        // If either operand was recurring, keep the result as recurring so display shows the repeating cycle
+        let result_kind = if float_kind(self) == FloatKind::Recurring
+            || float_kind(other) == FloatKind::Recurring
+        {
+            FloatKind::Recurring
+        } else {
+            FloatKind::Finite
         };
         Ok(make_float_from_parts(
             mantissa,
             exponent,
             negative,
-            FloatKind::Finite,
+            result_kind,
         ))
     }
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
@@ -488,17 +495,21 @@ impl Float {
             return Err(ERR_INFINITE_RESULT);
         }
 
-        let (mantissa, exponent, negative, _k) = {
-            let (m1, e1, n1, _) = float_to_parts(self);
-            let (m2, e2, n2, _) = float_to_parts(other);
-            let (m, e, neg) = sub_float(m1, e1, n1, m2, e2, n2)?;
-            (m, e, neg, FloatKind::Finite)
+        let (m1, e1, n1, _k1) = float_to_parts(self);
+        let (m2, e2, n2, _k2) = float_to_parts(other);
+        let (mantissa, exponent, negative) = sub_float(m1.clone(), e1, n1, m2.clone(), e2, n2)?;
+        let result_kind = if float_kind(self) == FloatKind::Recurring
+            || float_kind(other) == FloatKind::Recurring
+        {
+            FloatKind::Recurring
+        } else {
+            FloatKind::Finite
         };
         Ok(make_float_from_parts(
             mantissa,
             exponent,
             negative,
-            FloatKind::Finite,
+            result_kind,
         ))
     }
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
@@ -523,14 +534,21 @@ impl Float {
             });
         }
 
-        let (m1, e1, n1, _) = float_to_parts(self);
-        let (m2, e2, n2, _) = float_to_parts(other);
-        let (mantissa, exponent, negative) = mul_float(m1, e1, n1, m2, e2, n2)?;
+        let (m1, e1, n1, _k1) = float_to_parts(self);
+        let (m2, e2, n2, _k2) = float_to_parts(other);
+        let (mantissa, exponent, negative) = mul_float(m1.clone(), e1, n1, m2.clone(), e2, n2)?;
+        let result_kind = if float_kind(self) == FloatKind::Recurring
+            || float_kind(other) == FloatKind::Recurring
+        {
+            FloatKind::Recurring
+        } else {
+            FloatKind::Finite
+        };
         Ok(make_float_from_parts(
             mantissa,
             exponent,
             negative,
-            FloatKind::Finite,
+            result_kind,
         ))
     }
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
@@ -562,6 +580,65 @@ impl Float {
 
         let (m1, e1, n1, _) = float_to_parts(self);
         let (m2, e2, n2, _) = float_to_parts(other);
+
+        // If both operands are integer-like (no fractional part), attempt exact rational detection
+        let self_is_int_like =
+            e1 >= 0 || (e1 < 0 && (-(e1) as usize) <= m1.len() && m1.chars().all(|c| c == '0'));
+        let other_is_int_like =
+            e2 >= 0 || (e2 < 0 && (-(e2) as usize) <= m2.len() && m2.chars().all(|c| c == '0'));
+
+        if self_is_int_like && other_is_int_like {
+            // Build BigInt numerator and denominator from mantissas and exponents
+            // numerator = m1 * 10^{max(0, -e1)}; denominator = m2 * 10^{max(0, -e2)}
+            let mut num_str = m1.clone();
+            if e1 < 0 {
+                num_str.push_str(&"0".repeat((-e1) as usize));
+            }
+            let mut den_str = m2.clone();
+            if e2 < 0 {
+                den_str.push_str(&"0".repeat((-e2) as usize));
+            }
+            let mut num = BigInt::from_str(&num_str).unwrap_or_else(|_| BigInt::from(0));
+            let mut den = BigInt::from_str(&den_str).unwrap_or_else(|_| BigInt::from(1));
+            if den.is_zero() {
+                return Err(ERR_DIV_BY_ZERO);
+            }
+            // Reduce
+            let g = num.clone().abs().gcd(&den.clone().abs());
+            if !g.is_zero() {
+                num = num / &g;
+                den = den / &g;
+            }
+            // remove factors 2 and 5 from denominator to determine recurring
+            let mut d = den.clone().abs();
+            while (&d % BigInt::from(2u32)).is_zero() {
+                d = d / BigInt::from(2u32);
+            }
+            while (&d % BigInt::from(5u32)).is_zero() {
+                d = d / BigInt::from(5u32);
+            }
+            let recurring = !d.is_one();
+
+            // produce BigDecimal approximation at a safe scale and return recurring/finite accordingly
+            let bd = BigDecimal::new(num.clone(), 0) / BigDecimal::new(den.clone(), 0);
+            let (mantissa, exponent, negative) = from_bigdecimal(&bd);
+            if recurring {
+                return Ok(make_float_from_parts(
+                    mantissa,
+                    exponent,
+                    negative,
+                    FloatKind::Recurring,
+                ));
+            } else {
+                return Ok(make_float_from_parts(
+                    mantissa,
+                    exponent,
+                    negative,
+                    FloatKind::Finite,
+                ));
+            }
+        }
+
         let (mantissa, exponent, negative) = div_float(m1, e1, n1, m2, e2, n2)?;
         Ok(make_float_from_parts(
             mantissa,

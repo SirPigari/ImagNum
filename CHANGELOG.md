@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.4] - 2025-08-26
+
+- Display: recurring decimal results now render using the shortest repeating-cycle notation (example: `1/3` prints as `0.(3)`). The display logic reconstructs digits from the stored `BigDecimal` and finds the minimal repeating cycle at format-time.
+- Cleanup: fixed compiler warnings in `core/ops.rs` (removed unused imports and eliminated unused/mutable variable warnings) to keep builds clean.
+ - Tests: added `tests/display_format.rs` covering recurring and terminating display cases (e.g. `1/3 -> 0.(3)`, `1/8 -> 0.125`) and preservation after arithmetic.
+ - CI: added GitHub Actions workflow `.github/workflows/imagnum.yml` to run `cargo build` and `cargo test` on push and pull requests to `main`.
+
 ## [0.2.3] - 2025-08-26
 
 - Math: added BigDecimal rational-exponent support in `core/math.rs` via `pow_bigdecimal_rational` (with helpers `bigdecimal_pow_integer` and `bigdecimal_nth_root`) to compute base^(num/den) without converting to f64 when possible.

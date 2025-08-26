@@ -3,6 +3,7 @@ use crate::compat::{
     make_float_from_parts,
 };
 use crate::foundation::{Float, FloatKind, Int};
+// (no unused bigdecimal helpers/imports here)
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{
@@ -321,6 +322,104 @@ impl Display for Float {
             write!(f, "-Infinity")?;
 
             return Ok(());
+        }
+
+        // Special formatting for recurring rationals: show smallest repeating cycle like 0.(3) or 0.1(6)
+        if k == FloatKind::Recurring {
+            // `self` is a &Float; destructure without moving.
+            if let Float::Recurring(ref bd) = *self {
+                // Convert BigDecimal to a normalized decimal string and reconstruct digits
+                let s = bd.normalized().to_string();
+                let parts: Vec<&str> = s.split('E').collect();
+                let base = parts[0];
+                let exp_from_e: i32 = if parts.len() == 2 {
+                    parts[1].parse().unwrap_or(0)
+                } else {
+                    0
+                };
+
+                // Build a digits string (mantissa without dot) and compute final exponent
+                let (digits, exp_decimal) = if let Some(dot) = base.find('.') {
+                    let mantissa = base[..dot].to_string() + &base[dot + 1..];
+                    (
+                        mantissa.trim_start_matches('0').to_string(),
+                        -((base.len() - dot - 1) as i32),
+                    )
+                } else {
+                    (base.trim_start_matches('0').to_string(), 0)
+                };
+                let final_exp = exp_decimal + exp_from_e;
+
+                // Determine integer and fractional parts using final_exp
+                let (int_part, frac_part) = if digits.is_empty() {
+                    ("0".to_string(), String::new())
+                } else {
+                    let point_pos = (digits.len() as i32) + final_exp;
+                    if point_pos > 0 {
+                        let pp = point_pos as usize;
+                        if pp >= digits.len() {
+                            (digits.clone(), String::new())
+                        } else {
+                            (digits[..pp].to_string(), digits[pp..].to_string())
+                        }
+                    } else {
+                        (
+                            "0".to_string(),
+                            format!("{}{}", "0".repeat((-point_pos) as usize), digits),
+                        )
+                    }
+                };
+
+                // track negativity
+                let neg = base.starts_with('-');
+
+                // Limit analysis length to avoid pathological long scans
+                let max_check = frac_part.len().min(500);
+                let frac = &frac_part[..max_check];
+
+                // Find smallest repeating cycle: try every possible nonrepeating prefix length (p)
+                // and repeating cycle length (c). Prefer smallest c, then smallest p.
+                let mut found: Option<(usize, usize)> = None;
+                'outer: for rep_len in 1..=frac.len() {
+                    for nonrep_len in 0..=frac.len().saturating_sub(rep_len) {
+                        // candidate repeating cycle
+                        let start = nonrep_len;
+                        if start + rep_len > frac.len() {
+                            continue;
+                        }
+                        let rep = &frac[start..start + rep_len];
+                        // verify that the remainder of `frac` starting at `start` is consistent
+                        // with rep repeated (last repetition may be truncated)
+                        let mut ok = true;
+                        let mut i = start;
+                        while i < frac.len() {
+                            let take = (rep_len).min(frac.len() - i);
+                            if &frac[i..i + take] != &rep[..take] {
+                                ok = false;
+                                break;
+                            }
+                            i += take;
+                        }
+                        if ok {
+                            found = Some((nonrep_len, rep_len));
+                            break 'outer;
+                        }
+                    }
+                }
+
+                if let Some((nonrep_len, rep_len)) = found {
+                    let nonrep = &frac[..nonrep_len];
+                    let rep = &frac[nonrep_len..nonrep_len + rep_len];
+                    if neg {
+                        write!(f, "-{}.", int_part)?;
+                    } else {
+                        write!(f, "{}.", int_part)?;
+                    }
+                    write!(f, "{}({})", nonrep, rep)?;
+                    return Ok(());
+                }
+                // fallback: let the generic formatter below render it
+            }
         }
 
         let (mant, exp, neg, k) = float_to_parts(self);

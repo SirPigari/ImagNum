@@ -1,5 +1,7 @@
 # ImagNum
 
+[![crates.io](https://img.shields.io/crates/v/imagnum.svg)](https://crates.io/crates/imagnum) [![CI](https://github.com/SirPigari/ImagNum/actions/workflows/imagnum.yml/badge.svg?branch=main)](https://github.com/SirPigari/ImagNum/actions/workflows/imagnum.yml)
+
 **ImagNum** is a numeric types library for the **Lucia programming language**.
 
 It provides a unified and extensible framework for representing and manipulating all types of numeric values - from simple integers to complex and imaginary numbers.
@@ -101,6 +103,9 @@ match s {
 
 ## Contributing
 - Use `cargo test` to run the test-suite after making changes.
+
+## Changelog
+See the full changelog in [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 MIT License - © 2025 Lucia Programming Language Project
