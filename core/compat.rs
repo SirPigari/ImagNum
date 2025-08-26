@@ -1,4 +1,4 @@
-use crate::foundation::{Int, Float, FloatKind, SmallInt, SmallFloat};
+use crate::foundation::{Float, FloatKind, Int, SmallFloat, SmallInt};
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 use std::str::FromStr;
@@ -63,7 +63,11 @@ fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool, FloatKind) {
     }
 
     let parts: Vec<&str> = s.split('E').collect();
-    let (base, exp_part) = if parts.len() == 2 { (parts[0], parts[1]) } else { (s, "0") };
+    let (base, exp_part) = if parts.len() == 2 {
+        (parts[0], parts[1])
+    } else {
+        (s, "0")
+    };
 
     let exp_from_e: i32 = exp_part.parse().unwrap_or(0);
 
@@ -129,30 +133,53 @@ pub fn make_int_from_parts(digits: String, negative: bool, _kind: FloatKind) -> 
         Ok(_) => {
             // parse into BigInt
             match BigInt::from_str(&digits) {
-                Ok(mut bi) => { if negative { bi = -bi }; Int::Big(bi) },
+                Ok(mut bi) => {
+                    if negative {
+                        bi = -bi
+                    };
+                    Int::Big(bi)
+                }
                 Err(_) => Int::new(),
             }
         }
         Err(_) => {
             // fallback to BigInt parse attempt
             match BigInt::from_str(&digits) {
-                Ok(mut bi) => { if negative { bi = -bi }; Int::Big(bi) },
+                Ok(mut bi) => {
+                    if negative {
+                        bi = -bi
+                    };
+                    Int::Big(bi)
+                }
                 Err(_) => Int::new(),
             }
         }
     }
 }
 
-pub fn make_float_from_parts(mantissa: String, exponent: i32, negative: bool, kind: FloatKind) -> Float {
+pub fn make_float_from_parts(
+    mantissa: String,
+    exponent: i32,
+    negative: bool,
+    kind: FloatKind,
+) -> Float {
     match kind {
         FloatKind::NaN => Float::NaN,
-        FloatKind::Infinity => if negative { Float::NegInfinity } else { Float::Infinity },
+        FloatKind::Infinity => {
+            if negative {
+                Float::NegInfinity
+            } else {
+                Float::Infinity
+            }
+        }
         FloatKind::NegInfinity => Float::NegInfinity,
         FloatKind::Irrational | FloatKind::Finite => {
             // Build BigDecimal from mantissa and exponent: mantissa * 10^exponent
             // mantissa is digits without decimal point
             let mut s = mantissa;
-            if s.is_empty() { s = "0".to_string(); }
+            if s.is_empty() {
+                s = "0".to_string();
+            }
             // insert sign
             if negative && !s.starts_with('-') {
                 s = format!("-{}", s);
@@ -168,9 +195,19 @@ pub fn make_float_from_parts(mantissa: String, exponent: i32, negative: bool, ki
                 }
             } else {
                 // fallback: try parsing as BigDecimal string
-                let s2 = if exponent == 0 { s.clone() } else { format!("{}e{}", s, exponent) };
+                let s2 = if exponent == 0 {
+                    s.clone()
+                } else {
+                    format!("{}e{}", s, exponent)
+                };
                 match BigDecimal::from_str(&s2) {
-                    Ok(bd) => if kind == FloatKind::Irrational { Float::Irrational(bd) } else { Float::Big(bd) },
+                    Ok(bd) => {
+                        if kind == FloatKind::Irrational {
+                            Float::Irrational(bd)
+                        } else {
+                            Float::Big(bd)
+                        }
+                    }
                     Err(_) => Float::NaN,
                 }
             }
@@ -182,7 +219,15 @@ pub fn make_float_from_parts(mantissa: String, exponent: i32, negative: bool, ki
     }
 }
 
-pub fn int_is_nan(_i: &Int) -> bool { false }
-pub fn int_is_infinite(_i: &Int) -> bool { false }
-pub fn float_kind(f: &Float) -> FloatKind { float_to_parts(f).3 }
-pub fn float_is_negative(f: &Float) -> bool { float_to_parts(f).2 }
+pub fn int_is_nan(_i: &Int) -> bool {
+    false
+}
+pub fn int_is_infinite(_i: &Int) -> bool {
+    false
+}
+pub fn float_kind(f: &Float) -> FloatKind {
+    float_to_parts(f).3
+}
+pub fn float_is_negative(f: &Float) -> bool {
+    float_to_parts(f).2
+}

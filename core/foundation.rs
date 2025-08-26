@@ -1,6 +1,6 @@
-use once_cell::sync::Lazy;
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
+use once_cell::sync::Lazy;
 use std::str::FromStr;
 
 pub static NAN: Lazy<Float> = Lazy::new(|| Float::NaN);

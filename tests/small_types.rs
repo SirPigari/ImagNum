@@ -1,5 +1,5 @@
-use imagnum::foundation::{SmallInt, SmallFloat, Int, Float};
 use imagnum::create_int;
+use imagnum::foundation::{Float, Int, SmallFloat, SmallInt};
 
 #[test]
 fn test_small_int_basic_ops() {

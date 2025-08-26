@@ -1,35 +1,71 @@
-use crate::foundation::{Float, Int, FloatKind};
-use crate::compat::{int_to_string, float_to_parts, float_is_zero, int_to_parts, make_float_from_parts, make_int_from_parts, int_is_nan, int_is_infinite, float_is_negative, float_kind};
-use num_bigint::BigInt;
-use bigdecimal::BigDecimal;
-use std::str::FromStr;
-use crate::math::{
-    add_strings, sub_strings, mul_strings, div_strings, mod_strings, pow_strings, is_string_odd,
-    add_float, sub_float, mul_float, div_float, mod_float,
-    // transcendental float helpers
-    sin_float, cos_float, tan_float, ln_float, exp_float, log10_float, floor_float, ceil_float,
-    // sqrt helpers
-    sqrt_float, sqrt_int,
-    // transcendental int wrappers
-    sin_int, cos_int, tan_int, ln_int, exp_int, floor_int, ceil_int,
-    ERR_UNIMPLEMENTED, ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO, ERR_NEGATIVE_RESULT, ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_INFINITE_RESULT
+use crate::compat::{
+    float_is_zero, float_kind, float_to_parts, int_is_infinite, int_is_nan, int_to_parts,
+    int_to_string, make_float_from_parts, make_int_from_parts,
 };
+use crate::foundation::{Float, FloatKind, Int};
 use crate::functions::{create_float, create_int};
-use std::fmt::{Binary, Octal, LowerHex};
+use crate::math::{
+    ERR_DIV_BY_ZERO,
+    ERR_INFINITE_RESULT,
+    ERR_INVALID_FORMAT,
+    ERR_NEGATIVE_RESULT,
+    ERR_NEGATIVE_SQRT,
+    ERR_NUMBER_TOO_LARGE,
+    ERR_UNIMPLEMENTED,
+    add_float,
+    add_strings,
+    ceil_float,
+    ceil_int,
+    cos_float,
+    cos_int,
+    div_float,
+    div_strings,
+    exp_float,
+    exp_int,
+    floor_float,
+    floor_int,
+    is_string_odd,
+    ln_float,
+    ln_int,
+    log10_float,
+    mod_float,
+    mod_strings,
+    mul_float,
+    mul_strings,
+    pow_strings,
+    // transcendental float helpers
+    sin_float,
+    // transcendental int wrappers
+    sin_int,
+    // sqrt helpers
+    sqrt_float,
+    sqrt_int,
+    sub_float,
+    sub_strings,
+    tan_float,
+    tan_int,
+};
+use bigdecimal::BigDecimal;
+use num_bigint::BigInt;
+use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
 // use compat helpers (int_to_string / float_to_parts) from crate::compat
 
 impl Int {
+    pub fn is_negative(&self) -> bool {
+        let (_d, neg, _k) = int_to_parts(self);
+        neg
+    }
+
     pub fn to_float(&self) -> Result<Float, i16> {
         // Convert integer into Float::Big
         match self {
-            Int::Big(bi) => {
-                match BigDecimal::from_str(&bi.to_string()) {
-                    Ok(bd) => Ok(Float::Big(bd)),
-                    Err(_) => Err(ERR_INVALID_FORMAT),
-                }
-            }
+            Int::Big(bi) => match BigDecimal::from_str(&bi.to_string()) {
+                Ok(bd) => Ok(Float::Big(bd)),
+                Err(_) => Err(ERR_INVALID_FORMAT),
+            },
             Int::Small(_) => {
                 // Use string conversion for small ints
                 let s = int_to_string(self);
@@ -56,14 +92,23 @@ impl Int {
                 let (digits, _) = add_strings(&int_to_string(self), &int_to_string(other))?;
                 let digits = normalize_int_digits(&digits);
                 match BigInt::from_str(&digits) {
-                    Ok(mut bi) => { bi = -bi; Ok(Int::Big(bi)) },
+                    Ok(mut bi) => {
+                        bi = -bi;
+                        Ok(Int::Big(bi))
+                    }
                     Err(_) => Ok(Int::new()),
                 }
             }
             (false, true) => {
                 let (odigits, oneg, _k) = int_to_parts(other);
                 let other_int = match BigInt::from_str(&odigits) {
-                    Ok(bi) => if oneg { Int::Big(-bi) } else { Int::Big(bi) },
+                    Ok(bi) => {
+                        if oneg {
+                            Int::Big(-bi)
+                        } else {
+                            Int::Big(bi)
+                        }
+                    }
                     Err(_) => Int::new(),
                 };
                 self._sub(&other_int)
@@ -71,7 +116,12 @@ impl Int {
             (true, false) => {
                 let (sd, sneg, _k) = int_to_parts(self);
                 let s_int = match BigInt::from_str(&sd) {
-                    Ok(mut bi) => { if sneg { bi = -bi }; Int::Big(bi) },
+                    Ok(mut bi) => {
+                        if sneg {
+                            bi = -bi
+                        };
+                        Int::Big(bi)
+                    }
                     Err(_) => Int::new(),
                 };
                 let res = other._sub(&s_int)?;
@@ -105,7 +155,7 @@ impl Int {
                 let self_pos = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
                 let res = self_pos._add(other)?;
                 // flip sign
-                    Ok(-res)
+                Ok(-res)
             }
         }
     }
@@ -116,7 +166,12 @@ impl Int {
         let (_od, oneg, _k2) = int_to_parts(other);
         let negative = sneg ^ oneg ^ sign_flipped;
         match BigInt::from_str(&digits) {
-            Ok(mut bi) => { if negative { bi = -bi }; Ok(Int::Big(bi)) },
+            Ok(mut bi) => {
+                if negative {
+                    bi = -bi
+                };
+                Ok(Int::Big(bi))
+            }
             Err(_) => Ok(Int::new()),
         }
     }
@@ -127,7 +182,12 @@ impl Int {
         let (_od, oneg, _k2) = int_to_parts(other);
         let negative = sneg ^ oneg ^ sign_flipped;
         match BigInt::from_str(&digits) {
-            Ok(mut bi) => { if negative { bi = -bi }; Ok(Int::Big(bi)) },
+            Ok(mut bi) => {
+                if negative {
+                    bi = -bi
+                };
+                Ok(Int::Big(bi))
+            }
             Err(_) => Ok(Int::new()),
         }
     }
@@ -137,7 +197,12 @@ impl Int {
         let (_d, sneg, _k) = int_to_parts(self);
         let negative = sneg ^ sign_flipped;
         match BigInt::from_str(&digits) {
-            Ok(mut bi) => { if negative { bi = -bi }; Ok(Int::Big(bi)) },
+            Ok(mut bi) => {
+                if negative {
+                    bi = -bi
+                };
+                Ok(Int::Big(bi))
+            }
             Err(_) => Ok(Int::new()),
         }
     }
@@ -149,14 +214,18 @@ impl Int {
         let (sd, sneg, _sk) = int_to_parts(self);
         let (digits, sign_flipped) = pow_strings(&sd, &ed)?;
         let digits = normalize_int_digits(&digits);
-        let negative = if sneg && is_string_odd(&ed) { true ^ sign_flipped } else { sign_flipped };
+        let negative = if sneg && is_string_odd(&ed) {
+            true ^ sign_flipped
+        } else {
+            sign_flipped
+        };
         Ok(make_int_from_parts(digits, negative, FloatKind::Finite))
     }
     pub fn sqrt(&self) -> Result<Float, i16> {
         // For negative integers, return imaginary complex
         // Convert to BigDecimal and take sqrt via Float::Big
-    let (mant, neg, _k) = int_to_parts(self);
-    let (m2, e2, neg2, is_irr) = sqrt_int(mant, neg)?;
+        let (mant, neg, _k) = int_to_parts(self);
+        let (m2, e2, neg2, is_irr) = sqrt_int(mant, neg)?;
         if is_irr {
             Ok(make_float_from_parts(m2, e2, neg2, FloatKind::Irrational))
         } else {
@@ -164,14 +233,14 @@ impl Int {
         }
     }
     pub fn abs(&self) -> Self {
-    let (digits, _neg, _k) = int_to_parts(self);
-    make_int_from_parts(digits, false, FloatKind::Finite)
+        let (digits, _neg, _k) = int_to_parts(self);
+        make_int_from_parts(digits, false, FloatKind::Finite)
     }
 
     // Transcendental wrappers for Int: return Float (may be irrational)
     pub fn sin(&self) -> Result<Float, i16> {
         let (digits, neg, _k) = int_to_parts(self);
-        let (m,e,neg2, is_irr) = sin_int(digits, neg)?;
+        let (m, e, neg2, is_irr) = sin_int(digits, neg)?;
         if is_irr {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
         } else {
@@ -180,7 +249,7 @@ impl Int {
     }
     pub fn cos(&self) -> Result<Float, i16> {
         let (digits, neg, _k) = int_to_parts(self);
-        let (m,e,neg2, is_irr) = cos_int(digits, neg)?;
+        let (m, e, neg2, is_irr) = cos_int(digits, neg)?;
         if is_irr {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
         } else {
@@ -189,7 +258,7 @@ impl Int {
     }
     pub fn tan(&self) -> Result<Float, i16> {
         let (digits, neg, _k) = int_to_parts(self);
-        let (m,e,neg2, is_irr) = tan_int(digits, neg)?;
+        let (m, e, neg2, is_irr) = tan_int(digits, neg)?;
         if is_irr {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
         } else {
@@ -198,7 +267,7 @@ impl Int {
     }
     pub fn ln(&self) -> Result<Float, i16> {
         let (digits, neg, _k) = int_to_parts(self);
-        let (m,e,neg2, is_irr) = ln_int(digits, neg)?;
+        let (m, e, neg2, is_irr) = ln_int(digits, neg)?;
         if is_irr {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
         } else {
@@ -207,7 +276,7 @@ impl Int {
     }
     pub fn exp(&self) -> Result<Float, i16> {
         let (digits, neg, _k) = int_to_parts(self);
-        let (m,e,neg2, is_irr) = exp_int(digits, neg)?;
+        let (m, e, neg2, is_irr) = exp_int(digits, neg)?;
         if is_irr {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Irrational))
         } else {
@@ -226,8 +295,8 @@ impl Int {
     }
 
     pub fn is_zero(&self) -> bool {
-    let (digits, _neg, _k) = int_to_parts(self);
-    digits.is_empty() || digits == "0"
+        let (digits, _neg, _k) = int_to_parts(self);
+        digits.is_empty() || digits == "0"
     }
     pub fn to_usize(&self) -> Result<usize, i16> {
         // check for invalid or infinite via compat
@@ -297,20 +366,25 @@ impl Int {
             return Err(ERR_INVALID_FORMAT);
         }
         let int = create_int(value);
-    if int_is_nan(&int) || int_is_infinite(&int) {
+        if int_is_nan(&int) || int_is_infinite(&int) {
             return Err(ERR_INVALID_FORMAT);
         }
         Ok(int)
     }
     pub fn is_nan(&self) -> bool {
-    int_is_nan(self)
+        int_is_nan(self)
     }
     pub fn is_infinity(&self) -> bool {
-    int_is_infinite(self)
+        int_is_infinite(self)
     }
 }
 
 impl Float {
+    pub fn is_negative(&self) -> bool {
+        let (_m, _e, neg, _k) = float_to_parts(self);
+        neg
+    }
+
     pub fn to_f64(&self) -> Result<f64, i16> {
         let (mantissa, exponent, negative, kind) = float_to_parts(self);
         if kind == FloatKind::NaN {
@@ -347,12 +421,12 @@ impl Float {
         if kind == FloatKind::Infinity {
             return Ok(Float::Infinity);
         }
-        if kind == FloatKind::NegInfinity || float_is_negative(self) {
+        if kind == FloatKind::NegInfinity || self.is_negative() {
             return Err(ERR_NEGATIVE_SQRT);
         }
-    // Use math helper to get truncated, possibly irrational result
-    let (m,e,neg,_k) = float_to_parts(self);
-    let (m,e,neg,is_irr) = sqrt_float(m, e, neg)?;
+        // Use math helper to get truncated, possibly irrational result
+        let (m, e, neg, _k) = float_to_parts(self);
+        let (m, e, neg, is_irr) = sqrt_float(m, e, neg)?;
         if is_irr {
             return Ok(make_float_from_parts(m, e, neg, FloatKind::Irrational));
         }
@@ -365,62 +439,102 @@ impl Float {
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
             return Ok(Float::Infinity);
         }
-        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity {
+        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity
+        {
             return Ok(Float::NegInfinity);
         }
-        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity) ||
-           (float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::Infinity) {
+        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity)
+            || (float_kind(self) == FloatKind::NegInfinity
+                && float_kind(other) == FloatKind::Infinity)
+        {
             return Err(ERR_INFINITE_RESULT);
         }
-    
+
         let (mantissa, exponent, negative, _k) = {
-            let (m1,e1,n1,_k1) = float_to_parts(self);
-            let (m2,e2,n2,_k2) = float_to_parts(other);
+            let (m1, e1, n1, _k1) = float_to_parts(self);
+            let (m2, e2, n2, _k2) = float_to_parts(other);
             let (m, e, neg) = add_float(m1, e1, n1, m2, e2, n2)?;
             (m, e, neg, FloatKind::Finite)
         };
-        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
+        Ok(make_float_from_parts(
+            mantissa,
+            exponent,
+            negative,
+            FloatKind::Finite,
+        ))
     }
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
-            return Ok(make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite));
+            return Ok(make_float_from_parts(
+                "0".to_string(),
+                0,
+                false,
+                FloatKind::Finite,
+            ));
         }
-        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity {
-            return Ok(make_float_from_parts("0".to_string(), 0, true, FloatKind::Finite));
+        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity
+        {
+            return Ok(make_float_from_parts(
+                "0".to_string(),
+                0,
+                true,
+                FloatKind::Finite,
+            ));
         }
-        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity) ||
-           (float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::Infinity) {
+        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity)
+            || (float_kind(self) == FloatKind::NegInfinity
+                && float_kind(other) == FloatKind::Infinity)
+        {
             return Err(ERR_INFINITE_RESULT);
         }
-    
+
         let (mantissa, exponent, negative, _k) = {
-            let (m1,e1,n1,_) = float_to_parts(self);
-            let (m2,e2,n2,_) = float_to_parts(other);
+            let (m1, e1, n1, _) = float_to_parts(self);
+            let (m2, e2, n2, _) = float_to_parts(other);
             let (m, e, neg) = sub_float(m1, e1, n1, m2, e2, n2)?;
             (m, e, neg, FloatKind::Finite)
         };
-        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
+        Ok(make_float_from_parts(
+            mantissa,
+            exponent,
+            negative,
+            FloatKind::Finite,
+        ))
     }
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
         if float_kind(self) == FloatKind::Infinity || float_kind(other) == FloatKind::Infinity {
-            let neg = float_is_negative(self) ^ float_is_negative(other);
-            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
+            let neg = self.is_negative() ^ other.is_negative();
+            return Ok(if neg {
+                Float::NegInfinity
+            } else {
+                Float::Infinity
+            });
         }
-        if float_kind(self) == FloatKind::NegInfinity || float_kind(other) == FloatKind::NegInfinity {
-            let neg = float_is_negative(self) ^ float_is_negative(other);
-            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
+        if float_kind(self) == FloatKind::NegInfinity || float_kind(other) == FloatKind::NegInfinity
+        {
+            let neg = self.is_negative() ^ other.is_negative();
+            return Ok(if neg {
+                Float::NegInfinity
+            } else {
+                Float::Infinity
+            });
         }
 
-        let (m1,e1,n1,_) = float_to_parts(self);
-        let (m2,e2,n2,_) = float_to_parts(other);
+        let (m1, e1, n1, _) = float_to_parts(self);
+        let (m2, e2, n2, _) = float_to_parts(other);
         let (mantissa, exponent, negative) = mul_float(m1, e1, n1, m2, e2, n2)?;
-        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
+        Ok(make_float_from_parts(
+            mantissa,
+            exponent,
+            negative,
+            FloatKind::Finite,
+        ))
     }
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
@@ -432,19 +546,32 @@ impl Float {
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
             return Ok(Float::NaN);
         }
-        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity {
+        if float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::NegInfinity
+        {
             return Ok(Float::NaN);
         }
-        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity) ||
-           (float_kind(self) == FloatKind::NegInfinity && float_kind(other) == FloatKind::Infinity) {
-            let neg = float_is_negative(self) ^ float_is_negative(other);
-            return Ok(make_float_from_parts("0".to_string(), 0, neg, FloatKind::Finite));
+        if (float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::NegInfinity)
+            || (float_kind(self) == FloatKind::NegInfinity
+                && float_kind(other) == FloatKind::Infinity)
+        {
+            let neg = self.is_negative() ^ other.is_negative();
+            return Ok(make_float_from_parts(
+                "0".to_string(),
+                0,
+                neg,
+                FloatKind::Finite,
+            ));
         }
 
-        let (m1,e1,n1,_) = float_to_parts(self);
-        let (m2,e2,n2,_) = float_to_parts(other);
+        let (m1, e1, n1, _) = float_to_parts(self);
+        let (m2, e2, n2, _) = float_to_parts(other);
         let (mantissa, exponent, negative) = div_float(m1, e1, n1, m2, e2, n2)?;
-        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
+        Ok(make_float_from_parts(
+            mantissa,
+            exponent,
+            negative,
+            FloatKind::Finite,
+        ))
     }
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
@@ -457,10 +584,15 @@ impl Float {
             return Ok(Float::NaN);
         }
 
-        let (m1,e1,n1,_) = float_to_parts(self);
-        let (m2,e2,n2,_) = float_to_parts(other);
+        let (m1, e1, n1, _) = float_to_parts(self);
+        let (m2, e2, n2, _) = float_to_parts(other);
         let (mantissa, exponent, negative) = mod_float(m1, e1, n1, m2, e2, n2)?;
-        Ok(make_float_from_parts(mantissa, exponent, negative, FloatKind::Finite))
+        Ok(make_float_from_parts(
+            mantissa,
+            exponent,
+            negative,
+            FloatKind::Finite,
+        ))
     }
     pub fn _pow(&self, exponent: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(exponent) == FloatKind::NaN {
@@ -468,16 +600,25 @@ impl Float {
         }
         if float_is_zero(exponent) {
             // x^0 == 1
-        let (_m,_e,_,_) = float_to_parts(self);
-            return Ok(make_float_from_parts("1".to_string(), 0, false, FloatKind::Finite));
+            let (_m, _e, _, _) = float_to_parts(self);
+            return Ok(make_float_from_parts(
+                "1".to_string(),
+                0,
+                false,
+                FloatKind::Finite,
+            ));
         }
         if float_kind(self) == FloatKind::Infinity || float_kind(self) == FloatKind::NegInfinity {
-            let neg = float_is_negative(self) ^ float_is_negative(exponent);
-            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
+            let neg = self.is_negative() ^ exponent.is_negative();
+            return Ok(if neg {
+                Float::NegInfinity
+            } else {
+                Float::Infinity
+            });
         }
 
-    let (m_self, e_self, neg_self, _k1) = float_to_parts(self);
-    let (m_exp, e_exp, neg_exp, _k2) = float_to_parts(exponent);
+        let (m_self, e_self, neg_self, _k1) = float_to_parts(self);
+        let (m_exp, e_exp, neg_exp, _k2) = float_to_parts(exponent);
 
         if m_self.len() > 17 || e_self > 308 || e_self < -308 {
             return Err(ERR_NUMBER_TOO_LARGE);
@@ -500,14 +641,23 @@ impl Float {
             return Err(ERR_INVALID_FORMAT);
         }
         if pow_res.is_infinite() {
-            return Ok(if pow_res.is_sign_negative() { Float::NegInfinity } else { Float::Infinity });
+            return Ok(if pow_res.is_sign_negative() {
+                Float::NegInfinity
+            } else {
+                Float::Infinity
+            });
         }
 
         let negative = pow_res.is_sign_negative();
         let abs_res = pow_res.abs();
 
         if abs_res == 0.0 {
-            return Ok(make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite));
+            return Ok(make_float_from_parts(
+                "0".to_string(),
+                0,
+                false,
+                FloatKind::Finite,
+            ));
         }
 
         let exp = abs_res.log10().floor() as i32;
@@ -523,14 +673,21 @@ impl Float {
             final_exp += 1;
         }
 
-        Ok(make_float_from_parts(mantissa_str, final_exp, negative, FloatKind::Finite))
+        Ok(make_float_from_parts(
+            mantissa_str,
+            final_exp,
+            negative,
+            FloatKind::Finite,
+        ))
     }
-    
+
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
         self._pow(exponent).or_else(|_| {
             if float_kind(self) == FloatKind::NaN || float_kind(exponent) == FloatKind::NaN {
                 Err(ERR_INVALID_FORMAT)
-            } else if float_kind(self) == FloatKind::Infinity || float_kind(self) == FloatKind::NegInfinity {
+            } else if float_kind(self) == FloatKind::Infinity
+                || float_kind(self) == FloatKind::NegInfinity
+            {
                 Err(ERR_INFINITE_RESULT)
             } else {
                 Err(ERR_UNIMPLEMENTED)
@@ -538,13 +695,13 @@ impl Float {
         })
     }
     pub fn abs(&self) -> Self {
-    let (_m,_e,_,k) = float_to_parts(self);
-    make_float_from_parts(_m, _e, false, k)
+        let (_m, _e, _, k) = float_to_parts(self);
+        make_float_from_parts(_m, _e, false, k)
     }
 
     // Transcendental wrappers for Float
     pub fn sin(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = sin_float(m, e, neg)?;
         if is_irr {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
@@ -553,7 +710,7 @@ impl Float {
         }
     }
     pub fn cos(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = cos_float(m, e, neg)?;
         if is_irr {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
@@ -562,7 +719,7 @@ impl Float {
         }
     }
     pub fn tan(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = tan_float(m, e, neg)?;
         if is_irr {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
@@ -571,7 +728,7 @@ impl Float {
         }
     }
     pub fn ln(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = ln_float(m, e, neg)?;
         if is_irr {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
@@ -580,7 +737,7 @@ impl Float {
         }
     }
     pub fn exp(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = exp_float(m, e, neg)?;
         if is_irr {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
@@ -589,7 +746,7 @@ impl Float {
         }
     }
     pub fn log(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = log10_float(m, e, neg)?;
         if is_irr {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Irrational))
@@ -598,33 +755,42 @@ impl Float {
         }
     }
     pub fn floor(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg) = floor_float(m, e, neg)?;
         Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
     }
     pub fn ceil(&self) -> Result<Self, i16> {
-        let (m,e,neg,_k) = float_to_parts(self);
+        let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg) = ceil_float(m, e, neg)?;
         Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
     }
-    
+
     pub fn from_int(int: &Int) -> Result<Self, i16> {
         if int_is_nan(int) {
             return Err(ERR_INVALID_FORMAT);
         }
         if int_is_infinite(int) {
             // compat: map to float infinity
-        let (_d, neg, _k) = int_to_parts(int);
-            return Ok(if neg { Float::NegInfinity } else { Float::Infinity });
+            let (_d, neg, _k) = int_to_parts(int);
+            return Ok(if neg {
+                Float::NegInfinity
+            } else {
+                Float::Infinity
+            });
         }
         let (mantissa, neg, _k) = int_to_parts(int);
         if mantissa.is_empty() || mantissa == "0" {
-            return Ok(make_float_from_parts("0".to_string(), 0, false, FloatKind::Finite));
+            return Ok(make_float_from_parts(
+                "0".to_string(),
+                0,
+                false,
+                FloatKind::Finite,
+            ));
         }
         Ok(make_float_from_parts(mantissa, 0, neg, FloatKind::Finite))
     }
     pub fn is_zero(&self) -> bool {
-    float_is_zero(self)
+        float_is_zero(self)
     }
     pub fn round(&self, precision: usize) -> Self {
         let k = float_kind(self);
@@ -636,7 +802,7 @@ impl Float {
         }
 
         let (mut mantissa, mut exponent, neg, _k) = {
-            let (m,e,n,k1) = float_to_parts(self);
+            let (m, e, n, k1) = float_to_parts(self);
             (m, e, n, k1)
         };
 
@@ -644,10 +810,19 @@ impl Float {
         let mantissa_len = old_len as i32;
         let point_pos = mantissa_len + exponent;
 
-        let digits_to_keep = if point_pos > 0 { (point_pos as usize) + precision } else { precision };
+        let digits_to_keep = if point_pos > 0 {
+            (point_pos as usize) + precision
+        } else {
+            precision
+        };
 
         if mantissa.len() > digits_to_keep {
-            let round_digit = mantissa.chars().nth(digits_to_keep).unwrap_or('0').to_digit(10).unwrap_or(0);
+            let round_digit = mantissa
+                .chars()
+                .nth(digits_to_keep)
+                .unwrap_or('0')
+                .to_digit(10)
+                .unwrap_or(0);
             mantissa.truncate(digits_to_keep);
             if round_digit >= 5 {
                 let mut digits: Vec<u8> = mantissa.bytes().map(|b| b - b'0').collect();
@@ -656,7 +831,9 @@ impl Float {
                     let sum = *d + carry;
                     *d = sum % 10;
                     carry = sum / 10;
-                    if carry == 0 { break; }
+                    if carry == 0 {
+                        break;
+                    }
                 }
                 if carry > 0 {
                     digits.insert(0, carry);
@@ -678,7 +855,7 @@ impl Float {
 
         make_float_from_parts(mantissa, exponent, neg, FloatKind::Finite)
     }
-    
+
     pub fn truncate(&self, decimal_places: usize) -> Self {
         let k = float_kind(self);
         if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
@@ -692,7 +869,11 @@ impl Float {
         let mantissa_len = mantissa.len() as i32;
         let point_pos = mantissa_len + exponent;
 
-        let digits_to_keep = if point_pos > 0 { (point_pos as usize) + decimal_places } else { decimal_places };
+        let digits_to_keep = if point_pos > 0 {
+            (point_pos as usize) + decimal_places
+        } else {
+            decimal_places
+        };
 
         if mantissa.len() > digits_to_keep {
             mantissa.truncate(digits_to_keep);
@@ -709,7 +890,7 @@ impl Float {
         }
 
         make_float_from_parts(mantissa, exponent, neg, FloatKind::Finite)
-    } 
+    }
     pub fn from_f64(value: f64) -> Self {
         create_float(&value.to_string())
     }
@@ -718,59 +899,85 @@ impl Float {
             return Err(ERR_INVALID_FORMAT);
         }
         let float = create_float(value);
-    let k = float_kind(&float);
-    if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
+        let k = float_kind(&float);
+        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
             return Err(ERR_INVALID_FORMAT);
         }
         Ok(float)
     }
     pub fn is_integer_like(&self) -> bool {
-    let k = float_kind(self);
-    if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity { return false; }
-    let (mant, exp, _neg, _k) = float_to_parts(self);
-    if (mant.is_empty() && !(exp >= 0)) || !mant.chars().all(|c| c.is_digit(10)) { return false; }
-    if exp >= 0 { return true; }
-    let frac_len = (-exp) as usize;
-    if frac_len > mant.len() { return mant.chars().all(|c| c == '0'); }
-    let int_part_len = mant.len() - frac_len;
-    let frac_part = &mant[int_part_len..];
-    frac_part.chars().all(|c| c == '0')
-    }
-    
-    pub fn to_int(&self) -> Result<Int, i16> {
-        if float_to_parts(self).3 == FloatKind::NaN { return Err(ERR_INVALID_FORMAT); }
         let k = float_kind(self);
-        if k == FloatKind::Infinity || k == FloatKind::NegInfinity { return Err(ERR_INFINITE_RESULT); }
-        if self.is_zero() { return Ok(make_int_from_parts("0".to_string(), false, FloatKind::Finite)); }
-        if !self.is_integer_like() { return Err(ERR_INVALID_FORMAT); }
+        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
+            return false;
+        }
+        let (mant, exp, _neg, _k) = float_to_parts(self);
+        if (mant.is_empty() && !(exp >= 0)) || !mant.chars().all(|c| c.is_digit(10)) {
+            return false;
+        }
+        if exp >= 0 {
+            return true;
+        }
+        let frac_len = (-exp) as usize;
+        if frac_len > mant.len() {
+            return mant.chars().all(|c| c == '0');
+        }
+        let int_part_len = mant.len() - frac_len;
+        let frac_part = &mant[int_part_len..];
+        frac_part.chars().all(|c| c == '0')
+    }
+
+    pub fn to_int(&self) -> Result<Int, i16> {
+        if float_to_parts(self).3 == FloatKind::NaN {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let k = float_kind(self);
+        if k == FloatKind::Infinity || k == FloatKind::NegInfinity {
+            return Err(ERR_INFINITE_RESULT);
+        }
+        if self.is_zero() {
+            return Ok(make_int_from_parts(
+                "0".to_string(),
+                false,
+                FloatKind::Finite,
+            ));
+        }
+        if !self.is_integer_like() {
+            return Err(ERR_INVALID_FORMAT);
+        }
 
         let (mut digits, exp, neg, _k) = float_to_parts(self);
         if exp < 0 {
             let e = (-exp) as usize;
-            if e >= digits.len() { digits = "0".to_string(); } else { digits.truncate(digits.len() - e); }
+            if e >= digits.len() {
+                digits = "0".to_string();
+            } else {
+                digits.truncate(digits.len() - e);
+            }
         } else if exp > 0 {
             digits.push_str(&"0".repeat(exp as usize));
         }
         let digits = normalize_int_digits(&digits);
         Ok(make_int_from_parts(digits, neg, FloatKind::Finite))
     }
-    
+
     pub fn is_nan(&self) -> bool {
-    float_to_parts(self).3 == FloatKind::NaN
+        float_to_parts(self).3 == FloatKind::NaN
     }
     pub fn is_infinity(&self) -> bool {
-    float_to_parts(self).3 == FloatKind::Infinity
+        float_to_parts(self).3 == FloatKind::Infinity
     }
     pub fn make_irrational(&mut self) -> Self {
         let k = float_kind(self);
-        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity { return self.clone(); }
-        let (m,e,neg,_) = float_to_parts(self);
+        if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
+            return self.clone();
+        }
+        let (m, e, neg, _) = float_to_parts(self);
         let newf = make_float_from_parts(m, e, neg, FloatKind::Irrational);
         *self = newf.clone();
         newf
     }
 
-    pub fn normalize(&mut self) -> &mut Self{
+    pub fn normalize(&mut self) -> &mut Self {
         let (mut mant, mut exp, neg, _k) = float_to_parts(self);
         let trimmed = mant.trim_start_matches('0');
         let trimmed_len = trimmed.len();
@@ -782,8 +989,13 @@ impl Float {
             mant = trimmed.to_string();
             exp += zeros_removed as i32;
         }
-        if mant.is_empty() { mant = "0".to_string(); exp = 0; }
-        if mant == "0" { exp = 0; }
+        if mant.is_empty() {
+            mant = "0".to_string();
+            exp = 0;
+        }
+        if mant == "0" {
+            exp = 0;
+        }
         let newf = make_float_from_parts(mant, exp, neg, FloatKind::Finite);
         *self = newf;
         self
@@ -870,22 +1082,21 @@ impl LowerHex for Float {
 
 impl Hash for Int {
     fn hash<H: Hasher>(&self, state: &mut H) {
-    let (digits, negative, _k) = int_to_parts(self);
-    digits.hash(state);
-    negative.hash(state);
+        let (digits, negative, _k) = int_to_parts(self);
+        digits.hash(state);
+        negative.hash(state);
     }
 }
 
 impl Hash for Float {
     fn hash<H: Hasher>(&self, state: &mut H) {
-    let (mant, exp, neg, k) = float_to_parts(self);
-    mant.hash(state);
-    exp.hash(state);
-    neg.hash(state);
-    k.hash(state);
+        let (mant, exp, neg, k) = float_to_parts(self);
+        mant.hash(state);
+        exp.hash(state);
+        neg.hash(state);
+        k.hash(state);
     }
 }
-
 
 impl From<usize> for Int {
     fn from(value: usize) -> Self {

@@ -31,22 +31,14 @@ pub mod compat;
 // #[path = "core/complex.rs"]
 // pub mod complex;
 
-pub use foundation::{Int, Float};
-pub use functions::{
-    create_int,
-    create_float,
-};
+pub use foundation::{Float, Int};
+pub use functions::{create_float, create_int};
 pub mod macros {
-    pub use super::{int, float};
+    pub use super::{float, int};
 }
 use math::{
-    ERR_UNIMPLEMENTED,
-    ERR_INVALID_FORMAT,
-    ERR_DIV_BY_ZERO,
-    ERR_NEGATIVE_RESULT,
-    ERR_NEGATIVE_SQRT,
-    ERR_NUMBER_TOO_LARGE,
-    ERR_INFINITE_RESULT,
+    ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
+    ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_UNIMPLEMENTED,
 };
 pub mod errors {
     use super::*;
@@ -58,6 +50,10 @@ pub mod errors {
     pub const NUMBER_TOO_LARGE: i16 = ERR_NUMBER_TOO_LARGE;
     pub const INFINITE_RESULT: i16 = ERR_INFINITE_RESULT;
 
-    pub use super::functions::get_error_message;
     pub use super::functions::get_error_code;
+    pub use super::functions::get_error_message;
 }
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const COPYRIGHT: &str = "2025 Lucia Programming Language";
+pub const LICENSE: &str = "MIT License";

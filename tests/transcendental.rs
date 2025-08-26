@@ -16,7 +16,7 @@ fn test_sqrt_2_is_irrational_and_truncated() {
             // first digits should match known sqrt(2) prefix
             assert!(s.starts_with("1.4142135623730951"));
         }
-        _ => panic!("expected Irrational for sqrt(2)")
+        _ => panic!("expected Irrational for sqrt(2)"),
     }
 }
 
@@ -33,7 +33,7 @@ fn test_sqrt_4_is_finite_two() {
         Float::Small(_) => {
             // fine too
         }
-        _ => panic!("expected finite result for sqrt(4)")
+        _ => panic!("expected finite result for sqrt(4)"),
     }
 }
 
@@ -47,7 +47,7 @@ fn test_sin_of_zero_is_zero() {
             assert!(s.starts_with("0"));
         }
         Float::Small(_) => {}
-        _ => panic!("expected zero for sin(0)")
+        _ => panic!("expected zero for sin(0)"),
     }
 }
 
@@ -62,6 +62,6 @@ fn test_ln_of_1_is_zero() {
             assert!(s.starts_with("0"));
         }
         Float::Small(_) => {}
-        _ => panic!("expected zero for ln(1)")
+        _ => panic!("expected zero for ln(1)"),
     }
 }

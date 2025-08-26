@@ -1,13 +1,11 @@
 use crate::foundation::{Float, Int};
-use num_bigint::BigInt;
-use bigdecimal::BigDecimal;
-use std::str::FromStr;
 use crate::math::{
-    ERR_INVALID_FORMAT, ERR_DIV_BY_ZERO,
-    ERR_NEGATIVE_RESULT, ERR_NUMBER_TOO_LARGE,
-    ERR_INFINITE_RESULT, ERR_UNIMPLEMENTED,
-    ERR_NEGATIVE_SQRT,
+    ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
+    ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_UNIMPLEMENTED,
 };
+use bigdecimal::BigDecimal;
+use num_bigint::BigInt;
+use std::str::FromStr;
 
 pub fn create_int(int: &str) -> Int {
     let s = int.trim();
@@ -52,9 +50,15 @@ pub fn create_float(float: &str) -> Float {
 
     // Imaginary numbers ending with i -> treat as complex (0 + 1i * value)
     if lower.ends_with('i') {
-        let without_i = &s[..s.len()-1];
+        let without_i = &s[..s.len() - 1];
         // parse the coefficient; default 1
-        let coeff = if without_i.is_empty() || without_i == "+" { "1" } else if without_i == "-" { "-1" } else { without_i };
+        let coeff = if without_i.is_empty() || without_i == "+" {
+            "1"
+        } else if without_i == "-" {
+            "-1"
+        } else {
+            without_i
+        };
         let bd = BigDecimal::from_str(coeff).unwrap_or_else(|_| BigDecimal::from(0));
         let zero = Float::Big(BigDecimal::from(0));
         let imag = Float::Big(bd);

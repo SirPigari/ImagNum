@@ -1,11 +1,13 @@
-use crate::foundation::{Int, Float, FloatKind};
-use crate::compat::{int_to_string, float_to_parts, int_to_parts, make_float_from_parts, int_is_nan, int_is_infinite, float_kind};
-use std::ops::{
-    Add, Sub, Mul, Div, Rem, Neg,
-    AddAssign, SubAssign, MulAssign, DivAssign, RemAssign,
+use crate::compat::{
+    float_kind, float_to_parts, int_is_infinite, int_is_nan, int_to_parts, int_to_string,
+    make_float_from_parts,
 };
+use crate::foundation::{Float, FloatKind, Int};
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::ops::{
+    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign,
+};
 
 impl Add for Int {
     type Output = Result<Self, i16>;
@@ -70,31 +72,31 @@ impl Neg for Int {
 
 impl AddAssign for Int {
     fn add_assign(&mut self, other: Self) {
-    *self = self._add(&other).unwrap_or_else(|_| Int::new());
+        *self = self._add(&other).unwrap_or_else(|_| Int::new());
     }
 }
 
 impl SubAssign for Int {
     fn sub_assign(&mut self, other: Self) {
-    *self = self._sub(&other).unwrap_or_else(|_| Int::new());
+        *self = self._sub(&other).unwrap_or_else(|_| Int::new());
     }
 }
 
 impl MulAssign for Int {
     fn mul_assign(&mut self, other: Self) {
-    *self = self._mul(&other).unwrap_or_else(|_| Int::new());
+        *self = self._mul(&other).unwrap_or_else(|_| Int::new());
     }
 }
 
 impl DivAssign for Int {
     fn div_assign(&mut self, other: Self) {
-    *self = self._div(&other).unwrap_or_else(|_| Int::new());
+        *self = self._div(&other).unwrap_or_else(|_| Int::new());
     }
 }
 
 impl RemAssign for Int {
     fn rem_assign(&mut self, other: Self) {
-    *self = self._modulo(&other).unwrap_or_else(|_| Int::new());
+        *self = self._modulo(&other).unwrap_or_else(|_| Int::new());
     }
 }
 
@@ -122,15 +124,18 @@ fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
     (digits, exp)
 }
 
-
 impl PartialOrd for Int {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-    let (self_digits, self_neg, _k) = int_to_parts(self);
-    let (other_digits, other_neg, _k2) = int_to_parts(other);
-    if self_neg && !other_neg { return Some(Ordering::Less); }
-    if !self_neg && other_neg { return Some(Ordering::Greater); }
-    let self_digits = self_digits.trim_start_matches('0');
-    let other_digits = other_digits.trim_start_matches('0');
+        let (self_digits, self_neg, _k) = int_to_parts(self);
+        let (other_digits, other_neg, _k2) = int_to_parts(other);
+        if self_neg && !other_neg {
+            return Some(Ordering::Less);
+        }
+        if !self_neg && other_neg {
+            return Some(Ordering::Greater);
+        }
+        let self_digits = self_digits.trim_start_matches('0');
+        let other_digits = other_digits.trim_start_matches('0');
 
         let len_cmp = self_digits.len().cmp(&other_digits.len());
 
@@ -157,14 +162,26 @@ impl PartialOrd for Int {
     }
 }
 
-
 impl Display for Int {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    if int_is_nan(self) { write!(f, "NaN")?; return Ok(()); }
-    if int_is_infinite(self) { let (_d, neg, _k) = int_to_parts(self); if neg { write!(f, "-Infinity")?; } else { write!(f, "Infinity")?; } return Ok(()); }
-    let (digits, neg, _k) = int_to_parts(self);
-    if neg { write!(f, "-")?; }
-    write!(f, "{}", digits)
+        if int_is_nan(self) {
+            write!(f, "NaN")?;
+            return Ok(());
+        }
+        if int_is_infinite(self) {
+            let (_d, neg, _k) = int_to_parts(self);
+            if neg {
+                write!(f, "-Infinity")?;
+            } else {
+                write!(f, "Infinity")?;
+            }
+            return Ok(());
+        }
+        let (digits, neg, _k) = int_to_parts(self);
+        if neg {
+            write!(f, "-")?;
+        }
+        write!(f, "{}", digits)
     }
 }
 
@@ -212,51 +229,55 @@ impl Neg for Float {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-    let (m,e,neg,k) = float_to_parts(&self);
-    make_float_from_parts(m, e, !neg, k)
+        let (m, e, neg, k) = float_to_parts(&self);
+        make_float_from_parts(m, e, !neg, k)
     }
 }
 
 impl AddAssign for Float {
     fn add_assign(&mut self, other: Self) {
-    *self = self._add(&other).unwrap_or_else(|_| Float::NaN);
+        *self = self._add(&other).unwrap_or_else(|_| Float::NaN);
     }
 }
 
 impl SubAssign for Float {
     fn sub_assign(&mut self, other: Self) {
-    *self = self._sub(&other).unwrap_or_else(|_| Float::NaN);
+        *self = self._sub(&other).unwrap_or_else(|_| Float::NaN);
     }
 }
 
 impl MulAssign for Float {
     fn mul_assign(&mut self, other: Self) {
-    *self = self._mul(&other).unwrap_or_else(|_| Float::NaN);
+        *self = self._mul(&other).unwrap_or_else(|_| Float::NaN);
     }
 }
 
 impl DivAssign for Float {
     fn div_assign(&mut self, other: Self) {
-    *self = self._div(&other).unwrap_or_else(|_| Float::NaN);
+        *self = self._div(&other).unwrap_or_else(|_| Float::NaN);
     }
 }
 
 impl RemAssign for Float {
     fn rem_assign(&mut self, other: Self) {
-    *self = self._modulo(&other).unwrap_or_else(|_| Float::NaN);
+        *self = self._modulo(&other).unwrap_or_else(|_| Float::NaN);
     }
 }
 
 impl PartialOrd for Float {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
-    let (self_man, self_exp, self_neg, _k1) = float_to_parts(self);
-    let (other_man, other_exp, other_neg, _k2) = float_to_parts(other);
-    if self_neg && !other_neg { return Some(Ordering::Less); }
-    if !self_neg && other_neg { return Some(Ordering::Greater); }
-    let sign = if self_neg { -1 } else { 1 };
-    let (mut self_man, self_exp) = normalize(&self_man, self_exp);
-    let (mut other_man, other_exp) = normalize(&other_man, other_exp);
+        let (self_man, self_exp, self_neg, _k1) = float_to_parts(self);
+        let (other_man, other_exp, other_neg, _k2) = float_to_parts(other);
+        if self_neg && !other_neg {
+            return Some(Ordering::Less);
+        }
+        if !self_neg && other_neg {
+            return Some(Ordering::Greater);
+        }
+        let sign = if self_neg { -1 } else { 1 };
+        let (mut self_man, self_exp) = normalize(&self_man, self_exp);
+        let (mut other_man, other_exp) = normalize(&other_man, other_exp);
 
         // Pad zeros on the LEFT to align exponents
         if self_exp > other_exp {
@@ -303,7 +324,9 @@ impl Display for Float {
         }
 
         let (mant, exp, neg, k) = float_to_parts(self);
-        if neg { write!(f, "-")?; }
+        if neg {
+            write!(f, "-")?;
+        }
         if exp >= -50 && exp <= 50 {
             let mantissa = mant.trim_start_matches('0');
             let mantissa = if mantissa.is_empty() { "0" } else { mantissa };
@@ -329,7 +352,9 @@ impl Display for Float {
         } else {
             write!(f, "{}e{}", mant, exp)?;
         }
-        if k == FloatKind::Irrational { write!(f, "...")?; }
+        if k == FloatKind::Irrational {
+            write!(f, "...")?;
+        }
         Ok(())
     }
 }

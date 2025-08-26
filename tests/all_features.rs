@@ -1,4 +1,4 @@
-use imagnum::{create_int, create_float, Float, Int};
+use imagnum::{Float, Int, create_float, create_int};
 
 // Comprehensive integration tests covering library features
 
@@ -145,8 +145,14 @@ fn test_transcendentals_and_truncation() {
     // sin(0)=0, cos(0)=1, tan(0)=0
     let zero = create_float("0");
     let s = zero.sin().unwrap();
-    assert!(matches!(s, Float::Big(_) | Float::Irrational(_) | Float::Small(_)));
-    assert!(zero.cos().unwrap().to_f64().unwrap().abs() - 1.0 < 1e-12 || zero.cos().unwrap().to_f64().unwrap().abs() < 1e-12);
+    assert!(matches!(
+        s,
+        Float::Big(_) | Float::Irrational(_) | Float::Small(_)
+    ));
+    assert!(
+        zero.cos().unwrap().to_f64().unwrap().abs() - 1.0 < 1e-12
+            || zero.cos().unwrap().to_f64().unwrap().abs() < 1e-12
+    );
     assert!(zero.tan().unwrap().to_f64().unwrap().abs() < 1e-12);
 
     // ln(1)=0
@@ -158,19 +164,25 @@ fn test_transcendentals_and_truncation() {
     let e1 = create_float("1");
     let exp1 = e1.exp().unwrap();
     let approx = exp1.to_f64().unwrap();
-    assert!((approx - std::f64::consts::E).abs() < 1e-12 || (approx - std::f64::consts::E).abs() < 1e-8);
+    assert!(
+        (approx - std::f64::consts::E).abs() < 1e-12 || (approx - std::f64::consts::E).abs() < 1e-8
+    );
 
     // log10(10)=1
     let ten = create_float("10");
     let logt = ten.log().unwrap();
-    assert!( (logt.to_f64().unwrap() - 1.0).abs() < 1e-12 || (logt.to_f64().unwrap() - 1.0).abs() < 1e-8 );
+    assert!(
+        (logt.to_f64().unwrap() - 1.0).abs() < 1e-12 || (logt.to_f64().unwrap() - 1.0).abs() < 1e-8
+    );
 
     // floor/ceil
     let f = create_float("3.7");
     let fl = f.floor().unwrap();
     let cl = f.ceil().unwrap();
     assert!(fl.to_f64().unwrap().abs() - 3.0 < 1e-12 || (fl.to_f64().unwrap() - 3.0).abs() < 1e-8);
-    assert!( (cl.to_f64().unwrap() - 4.0).abs() < 1e-12 || (cl.to_f64().unwrap() - 4.0).abs() < 1e-8 );
+    assert!(
+        (cl.to_f64().unwrap() - 4.0).abs() < 1e-12 || (cl.to_f64().unwrap() - 4.0).abs() < 1e-8
+    );
 }
 
 #[test]

@@ -1,7 +1,4 @@
-use imagnum::{
-    create_float, create_int, Float, Int,
-    errors::get_error_message,
-};
+use imagnum::{Float, Int, create_float, create_int, errors::get_error_message};
 use std::io::{self, Write};
 
 #[derive(Debug, Clone)]

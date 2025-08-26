@@ -1,5 +1,5 @@
-use imagnum::foundation::{SmallInt, Int, Float};
-use imagnum::{create_int, create_float};
+use imagnum::foundation::{Float, Int, SmallInt};
+use imagnum::{create_float, create_int};
 
 // Tests for overflow behavior: small -> big promotion and handling of very large numbers
 
