@@ -2,13 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.2] - 2025-08-26
+
+- Compatibility: `core/compat.rs::int_to_string` now returns digits only (leading `-` trimmed) so internal math helpers receive unsigned digit strings consistently.
+- Bugfix: corrected integer addition edge-case so `(-A) + B` computes correctly.
+- Tests: added `tests/negative_numbers.rs` covering negative integer/float arithmetic and parsing; full test-suite verified green after changes.
+
 ## [0.2.1] - 2025-08-26
 
 - Added `.is_negative()` methods on `Int` and `Float` to expose negative-sign checks directly on the enum types.
 - Replaced internal `float_is_negative` compatibility helper with the new methods across the codebase.
 - Documentation: updated `README.md` to document the `.is_negative()` API and minor usage examples.
 - Tests: updated/added tests to cover the new API surface; full test-suite verified green after the change.
-
 ## [0.2.0] - 2025-08-25
 
 - Internal migration to an enum-based numeric foundation (`Int`, `Float`, `FloatKind`) while preserving the public API and REPL behavior.

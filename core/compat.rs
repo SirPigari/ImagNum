@@ -5,21 +5,24 @@ use std::str::FromStr;
 
 pub fn int_to_string(i: &Int) -> String {
     match i {
-        Int::Big(b) => b.to_string(),
-        Int::Small(s) => match s {
-            SmallInt::I8(v) => v.to_string(),
-            SmallInt::U8(v) => v.to_string(),
-            SmallInt::I16(v) => v.to_string(),
-            SmallInt::U16(v) => v.to_string(),
-            SmallInt::I32(v) => v.to_string(),
-            SmallInt::U32(v) => v.to_string(),
-            SmallInt::I64(v) => v.to_string(),
-            SmallInt::U64(v) => v.to_string(),
-            SmallInt::I128(v) => v.to_string(),
-            SmallInt::U128(v) => v.to_string(),
-            SmallInt::USize(v) => v.to_string(),
-            SmallInt::ISize(v) => v.to_string(),
-        },
+        Int::Big(b) => b.to_string().trim_start_matches('-').to_string(),
+        Int::Small(s) => {
+            let s = match s {
+                SmallInt::I8(v) => v.to_string(),
+                SmallInt::U8(v) => v.to_string(),
+                SmallInt::I16(v) => v.to_string(),
+                SmallInt::U16(v) => v.to_string(),
+                SmallInt::I32(v) => v.to_string(),
+                SmallInt::U32(v) => v.to_string(),
+                SmallInt::I64(v) => v.to_string(),
+                SmallInt::U64(v) => v.to_string(),
+                SmallInt::I128(v) => v.to_string(),
+                SmallInt::U128(v) => v.to_string(),
+                SmallInt::USize(v) => v.to_string(),
+                SmallInt::ISize(v) => v.to_string(),
+            };
+            s.trim_start_matches('-').to_string()
+        }
     }
 }
 

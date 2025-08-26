@@ -114,18 +114,11 @@ impl Int {
                 self._sub(&other_int)
             }
             (true, false) => {
-                let (sd, sneg, _k) = int_to_parts(self);
-                let s_int = match BigInt::from_str(&sd) {
-                    Ok(mut bi) => {
-                        if sneg {
-                            bi = -bi
-                        };
-                        Int::Big(bi)
-                    }
-                    Err(_) => Int::new(),
-                };
-                let res = other._sub(&s_int)?;
-                Ok(-res)
+                // (-A) + B = B - A
+                let (sd, _sneg, _k) = int_to_parts(self);
+                let self_pos = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
+                let res = other._sub(&self_pos)?;
+                Ok(res)
             }
         }
     }

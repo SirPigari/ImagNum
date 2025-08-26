@@ -120,11 +120,39 @@ fn main() {
 
         let mut iter = tokens.into_iter();
 
-        let mut acc = match parse_token(iter.next().unwrap()) {
-            Ok(n) => n,
-            Err(code) => {
-                println!("error [{}]: {}", code, get_error_message(code));
-                continue;
+        // Support unary +/- when the sign is separated by whitespace.
+        // Examples supported now: `-5 * 2`, `3 + - 2`, `+7 - 1`.
+        let first = iter.next().unwrap();
+
+        let mut acc = if first == "-" || first == "+" {
+            // Unary sign at start: combine with the next token if present
+            match iter.next() {
+                Some(next_tok) => {
+                    let signed = if first == "-" {
+                        format!("-{}", next_tok)
+                    } else {
+                        format!("{}", next_tok)
+                    };
+                    match parse_token(signed.as_str()) {
+                        Ok(n) => n,
+                        Err(code) => {
+                            println!("error [{}]: {}", code, get_error_message(code));
+                            continue;
+                        }
+                    }
+                }
+                None => {
+                    println!("missing operand after unary '{}'", first);
+                    continue;
+                }
+            }
+        } else {
+            match parse_token(first) {
+                Ok(n) => n,
+                Err(code) => {
+                    println!("error [{}]: {}", code, get_error_message(code));
+                    continue;
+                }
             }
         };
 
@@ -216,15 +244,44 @@ fn main() {
                 continue;
             }
 
+            // Fetch the right-hand side operand; allow unary +/- before the number.
             let rhs = match iter.next() {
-                Some(t) => match parse_token(t) {
-                    Ok(n) => n,
-                    Err(code) => {
-                        println!("error [{}]: {}", code, get_error_message(code));
-                        error_occurred = true;
-                        break;
+                Some(t) => {
+                    if t == "-" || t == "+" {
+                        // unary sign before the actual operand
+                        match iter.next() {
+                            Some(next_tok) => {
+                                let signed = if t == "-" {
+                                    format!("-{}", next_tok)
+                                } else {
+                                    format!("{}", next_tok)
+                                };
+                                match parse_token(signed.as_str()) {
+                                    Ok(n) => n,
+                                    Err(code) => {
+                                        println!("error [{}]: {}", code, get_error_message(code));
+                                        error_occurred = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            None => {
+                                println!("missing operand after unary '{}'", t);
+                                error_occurred = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        match parse_token(t) {
+                            Ok(n) => n,
+                            Err(code) => {
+                                println!("error [{}]: {}", code, get_error_message(code));
+                                error_occurred = true;
+                                break;
+                            }
+                        }
                     }
-                },
+                }
                 None => {
                     println!("missing operand after operator '{}'", op);
                     error_occurred = true;
