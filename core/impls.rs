@@ -10,7 +10,6 @@ use crate::math::{
     ERR_INVALID_FORMAT,
     ERR_NEGATIVE_RESULT,
     ERR_NEGATIVE_SQRT,
-    ERR_NUMBER_TOO_LARGE,
     ERR_UNIMPLEMENTED,
     add_float,
     add_strings,
@@ -47,6 +46,7 @@ use crate::math::{
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -390,21 +390,25 @@ impl Float {
             return Ok(f64::NEG_INFINITY);
         }
 
-        let mut mant = mantissa.clone();
-        if negative {
-            mant.insert(0, '-');
+        // Build a BigDecimal from mantissa and exponent and convert to f64.
+        // This handles very long mantissas (e.g. many fractional digits) that may
+        // not parse directly into f64 via `parse()`.
+        let mut s = mantissa.clone();
+        if s.is_empty() {
+            s = "0".to_string();
+        }
+        if exponent != 0 {
+            // Use scientific notation: mantissa * 10^exponent
+            s = format!("{}e{}", s, exponent);
+        }
+        if negative && !s.starts_with('-') {
+            s = format!("-{}", s);
         }
 
-        let exponent = exponent;
-        let value: f64 = match exponent {
-            0 => mant.parse().map_err(|_| ERR_INVALID_FORMAT)?,
-            _ => {
-                let base: f64 = mant.parse().map_err(|_| ERR_INVALID_FORMAT)?;
-                base * 10f64.powi(exponent)
-            }
-        };
-
-        Ok(value)
+        match BigDecimal::from_str(&s) {
+            Ok(bd) => bd.to_f64().ok_or(ERR_INVALID_FORMAT),
+            Err(_) => Err(ERR_INVALID_FORMAT),
+        }
     }
     pub fn sqrt(&self) -> Result<Self, i16> {
         let kind = float_kind(self);
@@ -610,23 +614,17 @@ impl Float {
             });
         }
 
-        let (m_self, e_self, neg_self, _k1) = float_to_parts(self);
-        let (m_exp, e_exp, neg_exp, _k2) = float_to_parts(exponent);
-
-        if m_self.len() > 17 || e_self > 308 || e_self < -308 {
-            return Err(ERR_NUMBER_TOO_LARGE);
-        }
-        if m_exp.len() > 17 || e_exp > 308 || e_exp < -308 {
-            return Err(ERR_NUMBER_TOO_LARGE);
-        }
-
-        let base_sign = if neg_self { -1.0 } else { 1.0 };
-        let base_val: f64 = m_self.parse::<f64>().unwrap_or(0.0);
-        let base_f64 = base_sign * base_val * 10f64.powi(e_self);
-
-        let exp_sign = if neg_exp { -1.0 } else { 1.0 };
-        let exp_val: f64 = m_exp.parse::<f64>().unwrap_or(0.0);
-        let exponent_f64 = exp_sign * exp_val * 10f64.powi(e_exp);
+        // Convert operands to f64 using the provided conversion helper. This handles
+        // BigDecimal-backed floats and avoids brittle string-length checks that
+        // rejected long fractional exponents.
+        let base_f64 = match self.to_f64() {
+            Ok(v) => v,
+            Err(_) => return Err(ERR_INVALID_FORMAT),
+        };
+        let exponent_f64 = match exponent.to_f64() {
+            Ok(v) => v,
+            Err(_) => return Err(ERR_INVALID_FORMAT),
+        };
 
         let pow_res = base_f64.powf(exponent_f64);
 

@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.3] - 2025-08-26
+
+- Math: added BigDecimal rational-exponent support in `core/math.rs` via `pow_bigdecimal_rational` (with helpers `bigdecimal_pow_integer` and `bigdecimal_nth_root`) to compute base^(num/den) without converting to f64 when possible.
+- Tests: added `tests/pow_bigdecimal.rs` covering rational-power cases (e.g. cube roots) to verify correctness of the new path.
+- Dependencies: added `num-integer` to provide integer utilities used by the rational conversion and GCD reduction.
+- Build: the crate version and `Cargo.toml` were updated to 0.2.3.
+
 ## [0.2.2] - 2025-08-26
 
 - Compatibility: `core/compat.rs::int_to_string` now returns digits only (leading `-` trimmed) so internal math helpers receive unsigned digit strings consistently.
@@ -14,6 +21,7 @@ All notable changes to this project are documented in this file.
 - Replaced internal `float_is_negative` compatibility helper with the new methods across the codebase.
 - Documentation: updated `README.md` to document the `.is_negative()` API and minor usage examples.
 - Tests: updated/added tests to cover the new API surface; full test-suite verified green after the change.
+
 ## [0.2.0] - 2025-08-25
 
 - Internal migration to an enum-based numeric foundation (`Int`, `Float`, `FloatKind`) while preserving the public API and REPL behavior.

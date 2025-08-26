@@ -6,6 +6,8 @@ use bigdecimal::{BigDecimal, Zero};
 use num_traits::{FromPrimitive, Signed, ToPrimitive};
 use std::str::FromStr;
 
+use num_integer::Integer;
+
 pub const ERR_UNIMPLEMENTED: i16 = -1;
 pub const ERR_INVALID_FORMAT: i16 = 1;
 pub const ERR_DIV_BY_ZERO: i16 = 2;
@@ -169,6 +171,216 @@ fn from_bigdecimal(bd: &BigDecimal) -> (String, i32, bool) {
 fn truncate_bd_to_decimals(bd: &BigDecimal, decimals: usize) -> BigDecimal {
     // Set scale to `decimals` (number of fractional digits) without rounding
     bd.with_scale(decimals as i64)
+}
+
+// Parse a BigDecimal (string form) into a rational numerator/denominator pair
+// by interpreting the decimal representation: e.g. "1.25" -> (125, 100)
+#[allow(dead_code)]
+fn bigdecimal_to_fraction(bd: &BigDecimal) -> (BigInt, BigInt) {
+    // Use normalized string to avoid scientific notation surprises
+    let s = bd.normalized().to_string();
+    let mut lower = s;
+    let neg = lower.starts_with('-');
+    if neg {
+        lower = lower.trim_start_matches('-').to_string();
+    }
+    let parts: Vec<&str> = lower.split('E').collect();
+    let (base, exp_part) = if parts.len() == 2 {
+        (parts[0], parts[1])
+    } else {
+        (lower.as_str(), "0")
+    };
+    let exp_from_e: i32 = exp_part.parse().unwrap_or(0);
+
+    if let Some(dot) = base.find('.') {
+        let int_part = &base[..dot];
+        let frac_part = &base[dot + 1..];
+        let numerator_str = format!("{}{}", int_part, frac_part);
+        let mut numerator =
+            BigInt::parse_bytes(numerator_str.as_bytes(), 10).unwrap_or_else(|| BigInt::from(0));
+        let mut denominator = BigInt::from(10u64).pow(frac_part.len() as u32);
+        // apply exponent from scientific notation
+        if exp_from_e > 0 {
+            // multiply numerator by 10^exp_from_e
+            numerator *= BigInt::from(10u64).pow(exp_from_e as u32);
+        } else if exp_from_e < 0 {
+            denominator *= BigInt::from(10u64).pow((-exp_from_e) as u32);
+        }
+        if neg {
+            numerator = -numerator;
+        }
+        let g = numerator.clone().abs().gcd(&denominator);
+        (numerator / &g, denominator / &g)
+    } else {
+        // integer-like base
+        let mut numerator =
+            BigInt::parse_bytes(base.as_bytes(), 10).unwrap_or_else(|| BigInt::from(0));
+        let mut denominator = BigInt::from(1u64);
+        if exp_from_e > 0 {
+            numerator *= BigInt::from(10u64).pow(exp_from_e as u32);
+        } else if exp_from_e < 0 {
+            denominator *= BigInt::from(10u64).pow((-exp_from_e) as u32);
+        }
+        if neg {
+            numerator = -numerator;
+        }
+        let g = numerator.clone().abs().gcd(&denominator);
+        (numerator / &g, denominator / &g)
+    }
+}
+
+// Integer power for BigDecimal (exponent >= 0), exponent as u64
+fn bigdecimal_pow_integer(mut base: BigDecimal, exp: BigInt) -> BigDecimal {
+    // exponent may be large; perform exponentiation by squaring using u32 chunks
+    if exp.is_zero() {
+        return BigDecimal::from(1);
+    }
+    let mut result = BigDecimal::from(1);
+    // Convert exp to positive BigInt
+    let mut e = exp.clone();
+    if e < BigInt::from(0) {
+        // negative handled by caller
+        e = -e;
+    }
+    // Repeated squaring with BigInt bits
+    while !e.is_zero() {
+        if (&e & BigInt::from(1u32)) == BigInt::from(1u32) {
+            result = result * base.clone();
+        }
+        e = e >> 1u32;
+        if !e.is_zero() {
+            base = base.clone() * base.clone();
+        }
+    }
+    result
+}
+
+// Compute n-th root of a positive BigDecimal using Newton's method.
+// Returns (root, exact) where exact indicates whether root^n == a exactly.
+fn bigdecimal_nth_root(
+    a: &BigDecimal,
+    n: u64,
+    precision: usize,
+) -> Result<(BigDecimal, bool), i16> {
+    if *a == BigDecimal::zero() {
+        return Ok((BigDecimal::zero(), true));
+    }
+    if n == 0 {
+        return Err(ERR_INVALID_FORMAT);
+    }
+    if a.is_negative() {
+        // odd roots of negative numbers are allowed; caller should handle sign
+    }
+
+    // desired scale (extra guard digits)
+    let guard = 10usize;
+    let scale = (precision + guard) as i64;
+
+    // initial guess: use 1 or magnitude heuristic
+    let mut x = a.with_scale(scale) / BigDecimal::from(n as i64);
+    if x == BigDecimal::zero() {
+        x = BigDecimal::from(1);
+    }
+
+    // convergence tolerance not explicitly used; rely on scale-based checks below
+    // Newton iteration: x_{k+1} = (1/n) * ((n-1)*x_k + a / x_k^{n-1})
+    for _ in 0..200 {
+        // compute x^{n-1}
+        let mut x_pow = BigDecimal::from(1);
+        for _ in 0..(n - 1) {
+            x_pow = x_pow * x.clone();
+        }
+        if x_pow == BigDecimal::zero() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let a_div = (a.with_scale(scale)) / x_pow;
+        let numerator = (x.clone() * BigDecimal::from((n - 1) as i64)) + a_div;
+        let x_next = numerator / BigDecimal::from(n as i64);
+
+        // convergence check: |x_next - x| < 10^{-precision}
+        let diff = if x_next.clone() > x.clone() {
+            x_next.clone() - x.clone()
+        } else {
+            x.clone() - x_next.clone()
+        };
+        // compare diff to tol (both are BigDecimal with scales)
+        if diff.with_scale(0).is_zero() {
+            x = x_next;
+            break;
+        }
+        // use string comparison magnitude: convert to scientific string and compare length
+        // simpler: stop if diff < 10^{-precision}
+        let cmp = diff.with_scale(precision as i64);
+        if cmp == BigDecimal::zero() {
+            x = x_next;
+            break;
+        }
+        x = x_next;
+    }
+
+    // Check exactness: compute x^n and compare to a at high precision
+    let mut x_pow_n = BigDecimal::from(1);
+    for _ in 0..n {
+        x_pow_n = x_pow_n * x.clone();
+    }
+    // normalize scales for comparison
+    let diff = if x_pow_n.clone() > a.clone() {
+        x_pow_n.clone() - a.clone()
+    } else {
+        a.clone() - x_pow_n.clone()
+    };
+    let approx_zero = diff.with_scale(precision as i64);
+    let exact = approx_zero == BigDecimal::zero();
+    Ok((x.with_scale(precision as i64), exact))
+}
+
+// Compute base^(num/den) where num and den are integers. Returns (bd_result, is_exact)
+pub fn pow_bigdecimal_rational(
+    base: &BigDecimal,
+    num: &BigInt,
+    den: &BigInt,
+    precision: usize,
+) -> Result<(BigDecimal, bool), i16> {
+    // Handle negative exponent sign
+    let mut numerator = num.clone();
+    let denominator = den.clone();
+    let neg_exp = numerator.is_negative();
+    if neg_exp {
+        numerator = -numerator;
+    }
+    // If denominator == 1 -> integer power
+    if denominator == BigInt::from(1u32) {
+        let res = bigdecimal_pow_integer(base.clone(), numerator);
+        if neg_exp {
+            return Ok((BigDecimal::from(1) / res, true));
+        }
+        return Ok((res, true));
+    }
+
+    // Compute base^{numerator} first
+    let mut base_pow = BigDecimal::from(1);
+    // exponent numerator may be large; but assume reasonable
+    let mut n = numerator.clone();
+    while n > BigInt::from(0) {
+        // multiply by base once; this is naive but acceptable for small numerators
+        base_pow = base_pow * base.clone();
+        n = n - BigInt::from(1u32);
+    }
+
+    // Now take denominator-th root of base_pow
+    let den_u64 = denominator.to_u64().unwrap_or(0);
+    if den_u64 == 0 {
+        return Err(ERR_INVALID_FORMAT);
+    }
+    let (root, exact) = bigdecimal_nth_root(&base_pow, den_u64, precision)?;
+    if neg_exp {
+        Ok((
+            (BigDecimal::from(1) / root).with_scale(precision as i64),
+            exact,
+        ))
+    } else {
+        Ok((root.with_scale(precision as i64), exact))
+    }
 }
 
 // Float arithmetic (keep old signatures)
