@@ -2,12 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.6] - 2025-08-27
+
+- Mixed reference/value operator implementations for `Int` and `Float` (`a + &b`, `&a + b`, and the same for `-`, `*`, `/`, `%`).
+- Unit tests: `tests/mixed_ref_value_ops.rs` to exercise mixed `&`/value operator forms.
+
 ## [0.2.5] - 2025-08-27
 
 - API: added reference-based operator implementations for `Int` and `Float` so expressions like `&a + &b` call arithmetic without cloning (Add/Sub/Mul/Div/Rem for `&Int` and `&Float`).
 - Tests: added `tests/ref_ops.rs` verifying `&Int` and `&Float` ops (add/sub/mul/div/rem) behave as expected.
-
-
 
 ## [0.2.4] - 2025-08-26
 
@@ -49,4 +52,3 @@ All notable changes to this project are documented in this file.
 ### Notes
 
 - Floating-point operations that produce irrational results are truncated to exactly 137 decimal places and marked as `Float::Irrational`.
-

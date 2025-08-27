@@ -372,6 +372,10 @@ impl Int {
     pub fn is_infinity(&self) -> bool {
         int_is_infinite(self)
     }
+    /// Plain string representation for Int (same as Display but returns String).
+    pub fn to_str(&self) -> String {
+        format!("{}", self)
+    }
 }
 
 impl Float {
@@ -1033,6 +1037,51 @@ impl Float {
     }
     pub fn is_infinity(&self) -> bool {
         float_to_parts(self).3 == FloatKind::Infinity
+    }
+    /// Plain string representation for Float.
+    /// - Recurring values are expanded to 10 fractional decimal places (no rounding).
+    /// - Irrational values return their numeric form without the trailing `...` used by Display.
+    pub fn to_str(&self) -> String {
+        let k = float_kind(self);
+        if k == FloatKind::NaN {
+            return "NaN".to_string();
+        }
+        if k == FloatKind::Infinity {
+            return "Infinity".to_string();
+        }
+        if k == FloatKind::NegInfinity {
+            return "-Infinity".to_string();
+        }
+
+        if k == FloatKind::Recurring {
+            if let Float::Recurring(ref bd) = *self {
+                // Create a truncated BigDecimal with scale = 10 (exactly 10 fractional digits)
+                let t = bd.with_scale(10);
+                // to_string will produce a non-scientific form when scale is set
+                let s = t.to_string();
+                if s.contains('.') {
+                    // ensure exactly 10 digits after decimal point
+                    let parts: Vec<&str> = s.split('.').collect();
+                    let int_part = parts[0];
+                    let mut frac = parts[1].to_string();
+                    if frac.len() > 10 {
+                        frac.truncate(10);
+                    } else if frac.len() < 10 {
+                        frac.push_str(&"0".repeat(10 - frac.len()));
+                    }
+                    return format!("{}.{}", int_part, frac);
+                } else {
+                    return format!("{}.{}", s, "0".repeat(10));
+                }
+            }
+        }
+
+        // For irrational floats, Display appends '...'; strip it.
+        let disp = format!("{}", self);
+        if k == FloatKind::Irrational && disp.ends_with("...") {
+            return disp[..disp.len() - 3].to_string();
+        }
+        disp
     }
     pub fn make_irrational(&mut self) -> Self {
         let k = float_kind(self);

@@ -6,6 +6,10 @@ use std::str::FromStr;
 pub static NAN: Lazy<Float> = Lazy::new(|| Float::NaN);
 pub static INFINITY: Lazy<Float> = Lazy::new(|| Float::Infinity);
 pub static NEG_INFINITY: Lazy<Float> = Lazy::new(|| Float::NegInfinity);
+pub static FLOAT_ZERO: Lazy<Float> = Lazy::new(|| Float::new());
+pub static INT_ZERO: Lazy<Int> = Lazy::new(|| Int::new());
+pub static FLOAT_ONE: Lazy<Float> = Lazy::new(|| Float::from(1.0));
+pub static INT_ONE: Lazy<Int> = Lazy::new(|| Int::from(1));
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash, Copy)]
 pub enum FloatKind {

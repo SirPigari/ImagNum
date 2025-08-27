@@ -58,6 +58,77 @@ impl<'a> Add<&'a Int> for &'a Int {
     }
 }
 
+// Mixed ref/value impls for Int: allow `a + &b` and `&a + b`
+impl<'a> Add<&'a Int> for Int {
+    type Output = Result<Int, i16>;
+    fn add(self, other: &'a Int) -> Self::Output {
+        self._add(other)
+    }
+}
+
+impl<'a> Add<Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn add(self, other: Int) -> Self::Output {
+        self._add(&other)
+    }
+}
+
+impl<'a> Sub<&'a Int> for Int {
+    type Output = Result<Int, i16>;
+    fn sub(self, other: &'a Int) -> Self::Output {
+        self._sub(other)
+    }
+}
+
+impl<'a> Sub<Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn sub(self, other: Int) -> Self::Output {
+        self._sub(&other)
+    }
+}
+
+impl<'a> Mul<&'a Int> for Int {
+    type Output = Result<Int, i16>;
+    fn mul(self, other: &'a Int) -> Self::Output {
+        self._mul(other)
+    }
+}
+
+impl<'a> Mul<Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn mul(self, other: Int) -> Self::Output {
+        self._mul(&other)
+    }
+}
+
+impl<'a> Div<&'a Int> for Int {
+    type Output = Result<Int, i16>;
+    fn div(self, other: &'a Int) -> Self::Output {
+        self._div(other)
+    }
+}
+
+impl<'a> Div<Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn div(self, other: Int) -> Self::Output {
+        self._div(&other)
+    }
+}
+
+impl<'a> Rem<&'a Int> for Int {
+    type Output = Result<Int, i16>;
+    fn rem(self, other: &'a Int) -> Self::Output {
+        self._modulo(other)
+    }
+}
+
+impl<'a> Rem<Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn rem(self, other: Int) -> Self::Output {
+        self._modulo(&other)
+    }
+}
+
 impl<'a> Sub<&'a Int> for &'a Int {
     type Output = Result<Int, i16>;
     fn sub(self, other: &'a Int) -> Self::Output {
@@ -295,6 +366,77 @@ impl<'a> Rem<&'a Float> for &'a Float {
     type Output = Result<Float, i16>;
     fn rem(self, other: &'a Float) -> Self::Output {
         self._modulo(other)
+    }
+}
+
+// Mixed ref/value impls for Float: allow `a + &b` and `&a + b`
+impl<'a> Add<&'a Float> for Float {
+    type Output = Result<Float, i16>;
+    fn add(self, other: &'a Float) -> Self::Output {
+        self._add(other)
+    }
+}
+
+impl<'a> Add<Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn add(self, other: Float) -> Self::Output {
+        self._add(&other)
+    }
+}
+
+impl<'a> Sub<&'a Float> for Float {
+    type Output = Result<Float, i16>;
+    fn sub(self, other: &'a Float) -> Self::Output {
+        self._sub(other)
+    }
+}
+
+impl<'a> Sub<Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn sub(self, other: Float) -> Self::Output {
+        self._sub(&other)
+    }
+}
+
+impl<'a> Mul<&'a Float> for Float {
+    type Output = Result<Float, i16>;
+    fn mul(self, other: &'a Float) -> Self::Output {
+        self._mul(other)
+    }
+}
+
+impl<'a> Mul<Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn mul(self, other: Float) -> Self::Output {
+        self._mul(&other)
+    }
+}
+
+impl<'a> Div<&'a Float> for Float {
+    type Output = Result<Float, i16>;
+    fn div(self, other: &'a Float) -> Self::Output {
+        self._div(other)
+    }
+}
+
+impl<'a> Div<Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn div(self, other: Float) -> Self::Output {
+        self._div(&other)
+    }
+}
+
+impl<'a> Rem<&'a Float> for Float {
+    type Output = Result<Float, i16>;
+    fn rem(self, other: &'a Float) -> Self::Output {
+        self._modulo(other)
+    }
+}
+
+impl<'a> Rem<Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn rem(self, other: Float) -> Self::Output {
+        self._modulo(&other)
     }
 }
 
