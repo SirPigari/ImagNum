@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.5] - 2025-08-27
+
+- API: added reference-based operator implementations for `Int` and `Float` so expressions like `&a + &b` call arithmetic without cloning (Add/Sub/Mul/Div/Rem for `&Int` and `&Float`).
+- Tests: added `tests/ref_ops.rs` verifying `&Int` and `&Float` ops (add/sub/mul/div/rem) behave as expected.
+
+
+
 ## [0.2.4] - 2025-08-26
 
 - Display: recurring decimal results now render using the shortest repeating-cycle notation (example: `1/3` prints as `0.(3)`). The display logic reconstructs digits from the stored `BigDecimal` and finds the minimal repeating cycle at format-time.
@@ -14,7 +21,6 @@ All notable changes to this project are documented in this file.
 - Math: added BigDecimal rational-exponent support in `core/math.rs` via `pow_bigdecimal_rational` (with helpers `bigdecimal_pow_integer` and `bigdecimal_nth_root`) to compute base^(num/den) without converting to f64 when possible.
 - Tests: added `tests/pow_bigdecimal.rs` covering rational-power cases (e.g. cube roots) to verify correctness of the new path.
 - Dependencies: added `num-integer` to provide integer utilities used by the rational conversion and GCD reduction.
-- Build: the crate version and `Cargo.toml` were updated to 0.2.3.
 
 ## [0.2.2] - 2025-08-26
 
@@ -42,6 +48,5 @@ All notable changes to this project are documented in this file.
 
 ### Notes
 
-- Per project constraints, `core/foundation.rs` remained unchanged; the migration was implemented via compatibility helpers and refactors elsewhere.
 - Floating-point operations that produce irrational results are truncated to exactly 137 decimal places and marked as `Float::Irrational`.
 

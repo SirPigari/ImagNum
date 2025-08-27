@@ -50,6 +50,42 @@ impl Rem for Int {
     }
 }
 
+// Reference-based ops for Int: allow `&a + &b` without cloning
+impl<'a> Add<&'a Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn add(self, other: &'a Int) -> Self::Output {
+        self._add(other)
+    }
+}
+
+impl<'a> Sub<&'a Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn sub(self, other: &'a Int) -> Self::Output {
+        self._sub(other)
+    }
+}
+
+impl<'a> Mul<&'a Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn mul(self, other: &'a Int) -> Self::Output {
+        self._mul(other)
+    }
+}
+
+impl<'a> Div<&'a Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn div(self, other: &'a Int) -> Self::Output {
+        self._div(other)
+    }
+}
+
+impl<'a> Rem<&'a Int> for &'a Int {
+    type Output = Result<Int, i16>;
+    fn rem(self, other: &'a Int) -> Self::Output {
+        self._modulo(other)
+    }
+}
+
 impl Neg for Int {
     type Output = Self;
 
@@ -223,6 +259,42 @@ impl Rem for Float {
 
     fn rem(self, other: Self) -> Self::Output {
         self._modulo(&other.clone())
+    }
+}
+
+// Reference-based ops for Float: allow `&a + &b` without cloning
+impl<'a> Add<&'a Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn add(self, other: &'a Float) -> Self::Output {
+        self._add(other)
+    }
+}
+
+impl<'a> Sub<&'a Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn sub(self, other: &'a Float) -> Self::Output {
+        self._sub(other)
+    }
+}
+
+impl<'a> Mul<&'a Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn mul(self, other: &'a Float) -> Self::Output {
+        self._mul(other)
+    }
+}
+
+impl<'a> Div<&'a Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn div(self, other: &'a Float) -> Self::Output {
+        self._div(other)
+    }
+}
+
+impl<'a> Rem<&'a Float> for &'a Float {
+    type Output = Result<Float, i16>;
+    fn rem(self, other: &'a Float) -> Self::Output {
+        self._modulo(other)
     }
 }
 
