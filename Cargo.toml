@@ -26,7 +26,3 @@ path = "imagnum.rs"
 [[bin]]
 name = "repl"
 path = "simple-repl.rs"
-
-[[bin]]
-name = "test"
-path = "test.rs"

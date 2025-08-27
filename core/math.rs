@@ -9,6 +9,7 @@ use std::str::FromStr;
 use num_integer::Integer;
 
 pub const ERR_UNIMPLEMENTED: i16 = -1;
+pub const UNKNOWN_ERROR: i16 = 0;
 pub const ERR_INVALID_FORMAT: i16 = 1;
 pub const ERR_DIV_BY_ZERO: i16 = 2;
 pub const ERR_NEGATIVE_RESULT: i16 = 3;
