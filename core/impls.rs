@@ -4,46 +4,12 @@ use crate::compat::{
 };
 use crate::foundation::{Float, FloatKind, Int};
 use crate::functions::{create_float, create_int};
-use crate::math::from_bigdecimal;
 use crate::math::{
-    ERR_DIV_BY_ZERO,
-    ERR_INFINITE_RESULT,
-    ERR_INVALID_FORMAT,
-    ERR_NEGATIVE_RESULT,
-    ERR_NEGATIVE_SQRT,
-    ERR_UNIMPLEMENTED,
-    add_float,
-    add_strings,
-    ceil_float,
-    ceil_int,
-    cos_float,
-    cos_int,
-    div_float,
-    div_strings,
-    exp_float,
-    exp_int,
-    floor_float,
-    floor_int,
-    is_string_odd,
-    ln_float,
-    ln_int,
-    log10_float,
-    mod_float,
-    mod_strings,
-    mul_float,
-    mul_strings,
-    pow_strings,
-    // transcendental float helpers
-    sin_float,
-    // transcendental int wrappers
-    sin_int,
-    // sqrt helpers
-    sqrt_float,
-    sqrt_int,
-    sub_float,
-    sub_strings,
-    tan_float,
-    tan_int,
+    ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
+    ERR_NEGATIVE_SQRT, ERR_UNIMPLEMENTED, add_float, add_strings, ceil_float, ceil_int, cos_float,
+    cos_int, div_float, div_strings, exp_float, exp_int, floor_float, floor_int, is_string_odd,
+    ln_float, ln_int, log10_float, mod_float, mod_strings, mul_float, mul_strings, pow_strings,
+    sin_float, sin_int, sqrt_float, sqrt_int, sub_float, sub_strings, tan_float, tan_int,
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
@@ -52,8 +18,6 @@ use num_traits::{One, Signed, ToPrimitive, Zero};
 use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
-
-// use compat helpers (int_to_string / float_to_parts) from crate::compat
 
 impl Int {
     pub fn is_negative(&self) -> bool {
@@ -64,10 +28,11 @@ impl Int {
     pub fn to_float(&self) -> Result<Float, i16> {
         // Convert integer into Float::Big
         match self {
-            Int::Big(bi) => match BigDecimal::from_str(&bi.to_string()) {
-                Ok(bd) => Ok(Float::Big(bd)),
-                Err(_) => Err(ERR_INVALID_FORMAT),
-            },
+            Int::Big(bi) => {
+                // Construct BigDecimal from BigInt directly to avoid string parsing
+                let bd = BigDecimal::from(bi.clone());
+                Ok(Float::Big(bd))
+            }
             Int::Small(_) => {
                 // Use string conversion for small ints
                 let s = int_to_string(self);
@@ -385,36 +350,22 @@ impl Float {
     }
 
     pub fn to_f64(&self) -> Result<f64, i16> {
-        let (mantissa, exponent, negative, kind) = float_to_parts(self);
-        if kind == FloatKind::NaN {
+        // Fast path: if we already have a BigDecimal (or small float convertible), use it directly.
+        if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
+            return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
+        }
+        // Handle NaN/Infinity explicitly
+        let k = float_kind(self);
+        if k == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
-        if kind == FloatKind::Infinity {
+        if k == FloatKind::Infinity {
             return Ok(f64::INFINITY);
         }
-        if kind == FloatKind::NegInfinity {
+        if k == FloatKind::NegInfinity {
             return Ok(f64::NEG_INFINITY);
         }
-
-        // Build a BigDecimal from mantissa and exponent and convert to f64.
-        // This handles very long mantissas (e.g. many fractional digits) that may
-        // not parse directly into f64 via `parse()`.
-        let mut s = mantissa.clone();
-        if s.is_empty() {
-            s = "0".to_string();
-        }
-        if exponent != 0 {
-            // Use scientific notation: mantissa * 10^exponent
-            s = format!("{}e{}", s, exponent);
-        }
-        if negative && !s.starts_with('-') {
-            s = format!("-{}", s);
-        }
-
-        match BigDecimal::from_str(&s) {
-            Ok(bd) => bd.to_f64().ok_or(ERR_INVALID_FORMAT),
-            Err(_) => Err(ERR_INVALID_FORMAT),
-        }
+        Err(ERR_INVALID_FORMAT)
     }
     pub fn sqrt(&self) -> Result<Self, i16> {
         let kind = float_kind(self);
@@ -625,21 +576,10 @@ impl Float {
 
             // produce BigDecimal approximation at a safe scale and return recurring/finite accordingly
             let bd = BigDecimal::new(num.clone(), 0) / BigDecimal::new(den.clone(), 0);
-            let (mantissa, exponent, negative) = from_bigdecimal(&bd);
             if recurring {
-                return Ok(make_float_from_parts(
-                    mantissa,
-                    exponent,
-                    negative,
-                    FloatKind::Recurring,
-                ));
+                return Ok(Float::Recurring(bd));
             } else {
-                return Ok(make_float_from_parts(
-                    mantissa,
-                    exponent,
-                    negative,
-                    FloatKind::Finite,
-                ));
+                return Ok(Float::Big(bd));
             }
         }
 
@@ -1076,12 +1016,13 @@ impl Float {
             }
         }
 
-        // For irrational floats, Display appends '...'; strip it.
-        let disp = format!("{}", self);
-        if k == FloatKind::Irrational && disp.ends_with("...") {
-            return disp[..disp.len() - 3].to_string();
+        // For Finite/Irrational/Big cases, try to use BigDecimal directly to avoid string roundtrips
+        if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
+            // For irrational, BigDecimal already contains the truncated value (no trailing dots)
+            return bd.normalized().to_string();
         }
-        disp
+        // Fallback to Display
+        format!("{}", self)
     }
     pub fn make_irrational(&mut self) -> Self {
         let k = float_kind(self);

@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.7] - 2025-08-27
+
+- Small optimizations
+
 ## [0.2.6] - 2025-08-27
 
 - Mixed reference/value operator implementations for `Int` and `Float` (`a + &b`, `&a + b`, and the same for `-`, `*`, `/`, `%`).

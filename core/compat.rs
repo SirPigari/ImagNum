@@ -1,6 +1,7 @@
 use crate::foundation::{Float, FloatKind, Int, SmallFloat, SmallInt};
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
+use num_traits::FromPrimitive;
 use std::str::FromStr;
 
 pub fn int_to_string(i: &Int) -> String {
@@ -101,6 +102,19 @@ pub fn float_is_zero(f: &Float) -> bool {
             SmallFloat::F64(v) => *v == 0.0,
         },
         _ => false,
+    }
+}
+
+/// Convert a `Float` to `BigDecimal` when possible without serializing to strings.
+/// Returns `None` for NaN/Infinity/Complex variants.
+pub fn float_to_bigdecimal(f: &Float) -> Option<BigDecimal> {
+    match f {
+        Float::Big(bd) | Float::Irrational(bd) | Float::Recurring(bd) => Some(bd.clone()),
+        Float::Small(s) => match s {
+            SmallFloat::F32(v) => BigDecimal::from_f32(*v),
+            SmallFloat::F64(v) => BigDecimal::from_f64(*v),
+        },
+        _ => None,
     }
 }
 
