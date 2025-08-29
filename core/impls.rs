@@ -1003,7 +1003,29 @@ impl Float {
 
         if k == FloatKind::Recurring {
             if let Float::Recurring(ref bd) = *self {
-                // Create a truncated BigDecimal with scale = 10 (exactly 10 fractional digits)
+                // If the recurring BigDecimal is exactly an integer (e.g. 0.(9) == 1),
+                // return the integer string instead of a fixed fractional expansion.
+                let n = bd.normalized();
+                let int_candidate = n.with_scale(0);
+                if n == int_candidate {
+                    return int_candidate.normalized().to_string();
+                }
+
+                // If normalized form is a short finite decimal (e.g. 0.5), return it.
+                let s_norm = n.normalized().to_string();
+                if s_norm.contains('.') {
+                    let parts: Vec<&str> = s_norm.split('.').collect();
+                    let frac = parts[1];
+                    // If fractional length is reasonably small, prefer the exact normalized string
+                    if frac.len() <= 20 {
+                        return s_norm;
+                    }
+                } else {
+                    // integer-like already handled, but if no '.' present just return
+                    return s_norm;
+                }
+
+                // Otherwise create a truncated BigDecimal with scale = 10 (exactly 10 fractional digits)
                 let t = bd.with_scale(10);
                 // to_string will produce a non-scientific form when scale is set
                 let s = t.to_string();
@@ -1185,5 +1207,62 @@ impl From<f32> for Float {
 impl From<i32> for Int {
     fn from(value: i32) -> Self {
         create_int(&value.to_string())
+    }
+}
+
+impl PartialEq for Float {
+    fn eq(&self, other: &Self) -> bool {
+        use crate::compat::float_to_bigdecimal;
+
+        if let Float::NaN = self {
+            return false;
+        }
+        if let Float::NaN = other {
+            return false;
+        }
+
+        match (self, other) {
+            (Float::Infinity, Float::Infinity) => return true,
+            (Float::NegInfinity, Float::NegInfinity) => return true,
+            (Float::Infinity, Float::NegInfinity) | (Float::NegInfinity, Float::Infinity) => {
+                return false;
+            }
+            _ => {}
+        }
+
+        if let (Some(a), Some(b)) = (float_to_bigdecimal(self), float_to_bigdecimal(other)) {
+            return a.normalized() == b.normalized();
+        }
+
+        false
+    }
+}
+
+impl PartialEq<Int> for Float {
+    fn eq(&self, other: &Int) -> bool {
+        use crate::compat::{float_to_bigdecimal, int_to_parts};
+        use std::str::FromStr;
+
+        if let Float::NaN = self {
+            return false;
+        }
+
+        if let Some(a) = float_to_bigdecimal(self) {
+            let (digits, negative, _k) = int_to_parts(other);
+            if let Ok(mut bi) = BigInt::from_str(&digits) {
+                if negative {
+                    bi = -bi;
+                }
+                let bdec = BigDecimal::new(bi, 0);
+                return a.normalized() == bdec.normalized();
+            }
+        }
+        false
+    }
+}
+
+impl PartialEq<Float> for Int {
+    fn eq(&self, other: &Float) -> bool {
+        other.eq(self)
     }
 }

@@ -51,7 +51,7 @@ pub enum Int {
     Small(SmallInt),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Float {
     Small(SmallFloat),
     Big(BigDecimal),

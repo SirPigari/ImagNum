@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.9] - 2025-8-29
+
+- Parsing: support recurring-decimal notation in `Float` constructors (e.g. "0.(9)", "-1.2(34)").
+- Equality: numeric equality now treats recurring decimals by value (e.g. `0.(9) == 1`, `0.4(9) == 0.5`).
+- Display: `Float::to_str` normalizes recurring values that equal integers or terminating decimals (prints "1" for `0.(9)` and "0.5" for `0.4(9)`).
+- Tests: added `tests/recurring_equality.rs` to validate recurring parsing, equality, and formatting.
+- Internals: implemented numeric `PartialEq` for `Float` and cross-type equality with `Int`.
+
 ## [0.2.8] - 2025-8-29
 
 - Added `is_recurring` and `is_irrational` to `Float` types.
