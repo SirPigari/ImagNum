@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.10] - 2025-8-29
+
+- Fixed recurring parsing
+
 ## [0.2.9] - 2025-8-29
 
 - Parsing: support recurring-decimal notation in `Float` constructors (e.g. "0.(9)", "-1.2(34)").

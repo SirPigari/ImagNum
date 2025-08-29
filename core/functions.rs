@@ -5,6 +5,7 @@ use crate::math::{
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
+use num_traits::{Signed, Zero, ToPrimitive};
 use std::str::FromStr;
 
 pub fn create_int(int: &str) -> Int {
@@ -126,9 +127,71 @@ pub fn create_float(float: &str) -> Float {
                 total_num = -total_num;
             }
 
-            // Construct BigDecimal as exact rational and mark Recurring
-            let bd = BigDecimal::new(total_num, 0) / BigDecimal::new(denom, 0);
-            return Float::Recurring(bd);
+            // Construct BigDecimal as exact rational and mark Recurring.
+            // To avoid BigDecimal division rounding artifacts, perform long
+            // division on integer numerator/denominator and build a BigDecimal
+            // from BigInt + scale so the stored digits match the repeating
+            // cycle exactly (this matches the division path behavior).
+            use std::collections::HashMap;
+            let mut num_abs = total_num.clone();
+            let den_abs = denom.clone().abs();
+            let neg = total_num.sign() == num_bigint::Sign::Minus;
+            if neg { num_abs = -num_abs.clone(); }
+            let int_part = (&num_abs / &den_abs).to_string();
+            let mut rem = num_abs % &den_abs;
+            let mut seen: HashMap<BigInt, usize> = HashMap::new();
+            let mut digits: Vec<char> = Vec::new();
+            // raise the cap so we don't accidentally stop mid-cycle for common denominators
+            let max_digits = 10000usize;
+            while !rem.is_zero() && !seen.contains_key(&rem) && digits.len() < max_digits {
+                seen.insert(rem.clone(), digits.len());
+                rem = rem * BigInt::from(10u32);
+                let q = (&rem / &den_abs).to_i32().unwrap_or(0);
+                digits.push(std::char::from_digit(q as u32, 10).unwrap_or('0'));
+                rem = rem % &den_abs;
+            }
+
+            let mut frac_str = String::new();
+            if digits.is_empty() {
+                let s_out = if neg { format!("-{}.0", int_part) } else { format!("{}.0", int_part) };
+                let bd = BigDecimal::from_str(&s_out).unwrap_or_else(|_| BigDecimal::from(0));
+                return Float::Big(bd);
+            } else {
+                if let Some(start) = seen.get(&rem) {
+                    let start = *start;
+                    let nonrep: String = digits[..start].iter().collect();
+                    let rep: String = digits[start..].iter().collect();
+                    // choose repeat count so we end on full repeats (no truncated tail)
+                    // repeat the minimal repeating block several times so the
+                    // stored BigDecimal ends with whole repeats and the Display
+                    // path can deterministically detect the period.
+                    let min_repeats = 4usize; // keep a few repeats to be robust
+                    let repeat_count = min_repeats;
+                    frac_str.push_str(&nonrep);
+                    for _ in 0..repeat_count {
+                        frac_str.push_str(&rep);
+                    }
+                } else {
+                    for d in digits.iter() { frac_str.push(*d); }
+                }
+            }
+
+            let digits_concat = format!("{}{}", int_part.trim_start_matches('-'), frac_str);
+            match BigInt::from_str(&digits_concat) {
+                Ok(mut bi) => {
+                    if neg {
+                        bi = -bi;
+                    }
+                    let scale = frac_str.len() as i64;
+                    let bd = BigDecimal::new(bi, scale);
+                    return Float::Recurring(bd);
+                }
+                Err(_) => {
+                    let s_out = if neg { format!("-{}.{}", int_part, frac_str) } else { format!("{}.{}", int_part, frac_str) };
+                    let bd = BigDecimal::from_str(&s_out).unwrap_or_else(|_| BigDecimal::from(0));
+                    return Float::Recurring(bd);
+                }
+            }
         }
     }
 

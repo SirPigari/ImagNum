@@ -14,7 +14,8 @@ use crate::math::{
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::{One, Signed, ToPrimitive, Zero};
+use num_traits::{Signed, ToPrimitive, Zero};
+use std::collections::HashMap;
 use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -580,14 +581,75 @@ impl Float {
             while (&d % BigInt::from(5u32)).is_zero() {
                 d = d / BigInt::from(5u32);
             }
-            let recurring = !d.is_one();
 
-            // produce BigDecimal approximation at a safe scale and return recurring/finite accordingly
-            let bd = BigDecimal::new(num.clone(), 0) / BigDecimal::new(den.clone(), 0);
-            if recurring {
-                return Ok(Float::Recurring(bd));
-            } else {
+            // produce a BigDecimal that preserves the repeating cycle by performing
+            // long division on the integer numerator/denominator and repeating the
+            // detected cycle many times. This avoids small rounding artifacts when
+            // using BigDecimal division directly and lets the Display path reconstruct
+            // compact recurring notation (e.g. 1/6 -> 0.1(6)).
+            let den_abs = den.clone().abs();
+            let num_abs = num.clone().abs();
+            // sign: numerator negative xor denominator negative
+            let neg = n1 ^ n2;
+            // integer part
+            let int_part = (&num_abs / &den_abs).to_string();
+            let mut rem = num_abs % &den_abs;
+            // build fractional digits via long division, track remainders
+            let mut seen: HashMap<BigInt, usize> = HashMap::new();
+            let mut digits: Vec<char> = Vec::new();
+            // raise the cap so we don't accidentally stop mid-cycle for common denominators
+            let max_digits = 10000usize;
+            while !rem.is_zero() && !seen.contains_key(&rem) && digits.len() < max_digits {
+                seen.insert(rem.clone(), digits.len());
+                rem = rem * BigInt::from(10u32);
+                let q = (&rem / &den_abs).to_i32().unwrap_or(0);
+                digits.push(std::char::from_digit(q as u32, 10).unwrap_or('0'));
+                rem = rem % &den_abs;
+            }
+
+            let mut frac_str = String::new();
+            if digits.is_empty() {
+                // terminating (unlikely in recurring path) — return Big
+                let s_out = if neg { format!("-{}.0", int_part) } else { format!("{}.0", int_part) };
+                let bd = BigDecimal::from_str(&s_out).unwrap_or_else(|_| BigDecimal::from(0));
                 return Ok(Float::Big(bd));
+            } else {
+                if let Some(start) = seen.get(&rem) {
+                    let start = *start;
+                    let nonrep: String = digits[..start].iter().collect();
+                    let rep: String = digits[start..].iter().collect();
+                    // repeat the minimal repeating block several times so the
+                    // stored BigDecimal ends with whole repeats and the Display
+                    // path can deterministically detect the period.
+                    let min_repeats = 4usize;
+                    let repeat_count = min_repeats;
+                    frac_str.push_str(&nonrep);
+                    for _ in 0..repeat_count {
+                        frac_str.push_str(&rep);
+                    }
+                } else {
+                    // no cycle found within limit — just repeat all digits
+                    for d in digits.iter() { frac_str.push(*d); }
+                }
+            }
+
+            // Construct BigDecimal exactly: (int_part || frac_str) as BigInt with scale = frac_len
+            let digits_concat = format!("{}{}", int_part.trim_start_matches('-'), frac_str);
+            match BigInt::from_str(&digits_concat) {
+                Ok(mut bi) => {
+                    if neg {
+                        bi = -bi;
+                    }
+                    let scale = frac_str.len() as i64;
+                    let bd = BigDecimal::new(bi, scale);
+                    return Ok(Float::Recurring(bd));
+                }
+                Err(_) => {
+                    // fallback to parsing string
+                    let s_out = if neg { format!("-{}.{}", int_part, frac_str) } else { format!("{}.{}", int_part, frac_str) };
+                    let bd = BigDecimal::from_str(&s_out).unwrap_or_else(|_| BigDecimal::from(0));
+                    return Ok(Float::Recurring(bd));
+                }
             }
         }
 

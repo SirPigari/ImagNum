@@ -591,12 +591,12 @@ impl Display for Float {
                 let max_check = frac_part.len().min(500);
                 let frac = &frac_part[..max_check];
 
-                // Find smallest repeating cycle: try every possible nonrepeating prefix length (p)
-                // and repeating cycle length (c). Prefer smallest c, then smallest p.
+                // Find smallest repeating cycle: try every possible repeating cycle
+                // length first (smallest period), then smallest non-repeating prefix
+                // so we prefer 0.1(6) over 0.(16666).
                 let mut found: Option<(usize, usize)> = None;
                 'outer: for rep_len in 1..=frac.len() {
                     for nonrep_len in 0..=frac.len().saturating_sub(rep_len) {
-                        // candidate repeating cycle
                         let start = nonrep_len;
                         if start + rep_len > frac.len() {
                             continue;
@@ -604,7 +604,14 @@ impl Display for Float {
                         let rep = &frac[start..start + rep_len];
                         // verify that the remainder of `frac` starting at `start` is consistent
                         // with rep repeated (last repetition may be truncated)
+                        // ignore candidates that only appear as a single trailing partial
+                        // repetition (e.g. a lone '7' at the end) by requiring at least
+                        // two full repetitions in the remaining suffix.
                         let mut ok = true;
+                        let remaining = frac.len() - start;
+                        if remaining < rep_len * 2 {
+                            ok = false;
+                        }
                         let mut i = start;
                         while i < frac.len() {
                             let take = (rep_len).min(frac.len() - i);

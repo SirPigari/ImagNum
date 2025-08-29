@@ -123,18 +123,108 @@ fn main() {
             println!("input error");
             continue;
         }
-
-        let mut tokens: Vec<&str> = line.trim().split_whitespace().collect();
-        if tokens.is_empty() {
+        if line.trim().is_empty() {
             continue;
         }
+        if line.starts_with("quit") {
+            std::process::exit(0);
+        }
+
+        // Tokenize the input so "1/3" -> ["1","/","3"] and "0.4(9)" stays a single token.
+        fn tokenize(input: &str) -> Vec<String> {
+            let mut toks = Vec::new();
+            let chars: Vec<char> = input.chars().collect();
+            let mut i = 0usize;
+            let n = chars.len();
+            let mut last_was_value = false;
+            while i < n {
+                let c = chars[i];
+                if c.is_whitespace() { i += 1; continue; }
+                // two-char operators
+                if i + 1 < n {
+                    let two = format!("{}{}", c, chars[i+1]);
+                    if two == "==" || two == "!=" || two == ">=" || two == "<=" {
+                        toks.push(two);
+                        i += 2;
+                        last_was_value = false;
+                        continue;
+                    }
+                }
+                // single-char operators/parentheses
+                if "+-*/%^()<>".contains(c) {
+                    // treat + or - as part of number if it's a sign at a value position
+                    if (c == '+' || c == '-') && !last_was_value && i + 1 < n && (chars[i+1].is_ascii_digit() || chars[i+1] == '.') {
+                        // parse signed number below
+                    } else {
+                        toks.push(c.to_string());
+                        i += 1;
+                        last_was_value = false;
+                        continue;
+                    }
+                }
+                // number token (digits, optional dot, optional recurring parentheses)
+                if chars[i].is_ascii_digit() || chars[i] == '.' || ((chars[i] == '+' || chars[i] == '-') && i + 1 < n && (chars[i+1].is_ascii_digit() || chars[i+1] == '.')) {
+                    let start = i;
+                    if chars[i] == '+' || chars[i] == '-' { i += 1; }
+                    while i < n && (chars[i].is_ascii_digit() || chars[i] == '.') { i += 1; }
+                    // if next is '(' collect recurring group
+                    if i < n && chars[i] == '(' {
+                        let mut j = i + 1;
+                        while j < n && chars[j] != ')' { j += 1; }
+                        if j < n && chars[j] == ')' {
+                            i = j + 1;
+                        }
+                    }
+                    let tok: String = chars[start..i].iter().collect();
+                    toks.push(tok);
+                    last_was_value = true;
+                    continue;
+                }
+                // identifier token (letters)
+                if chars[i].is_alphabetic() {
+                    let start = i;
+                    while i < n && (chars[i].is_alphanumeric() || chars[i] == '-') { i += 1; }
+                    let tok: String = chars[start..i].iter().collect();
+                    toks.push(tok);
+                    last_was_value = true;
+                    continue;
+                }
+                // fallback single char
+                toks.push(c.to_string());
+                i += 1;
+                last_was_value = false;
+            }
+            toks
+        }
+
+        let mut tokens_owned = tokenize(line.trim());
+        // fallback: if tokenizer returned a single token that still contains operator chars,
+        // attempt a conservative split so expressions like "1/3" become ["1","/","3"].
+        if tokens_owned.len() == 1 {
+            let s = &tokens_owned[0];
+            if s.contains('/') || s.contains('*') || s.contains('+') || s.contains('-') || s.contains('%') || s.contains('^') {
+                let mut parts: Vec<String> = Vec::new();
+                let mut cur = String::new();
+                for ch in s.chars() {
+                    if "+-*/%^()<>".contains(ch) {
+                        if !cur.is_empty() { parts.push(cur.clone()); cur.clear(); }
+                        parts.push(ch.to_string());
+                    } else {
+                        cur.push(ch);
+                    }
+                }
+                if !cur.is_empty() { parts.push(cur); }
+                if parts.len() > 1 {
+                    tokens_owned = parts;
+                }
+            }
+        }
+        let mut tokens: Vec<&str> = tokens_owned.iter().map(|s| s.as_str()).collect();
+        if tokens.is_empty() { continue; }
 
         // Allow a trailing '=' token to request result printing (e.g. "3 + 4 =").
-        let wants_eq = if tokens.len() > 1 && tokens.last() == Some(&"=") {
+        if tokens.len() > 1 && tokens.last() == Some(&"=") {
             tokens.pop();
-            true
-        } else {
-            false
         };
 
         // If input is a single number (with optional trailing '='), just print it.
@@ -401,11 +491,6 @@ fn main() {
         if error_occurred { continue; }
         if eval_stack.len() != 1 { println!("malformed expression"); continue; }
         let result = eval_stack.pop().unwrap();
-        if wants_eq {
-            println!("{}= {}", " ".repeat(4), result.display());
-        } else {
-            // Default behavior: always print the result
-            println!("{}= {}", " ".repeat(4), result.display());
-        }
+        println!("{}= {}", " ".repeat(4), result.display());
     }
 }
