@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.8] - 2025-8-29
+
+- Added `is_recurring` and `is_irrational` to `Float` types.
+
 ## [0.2.7] - 2025-08-27
 
 - Small optimizations

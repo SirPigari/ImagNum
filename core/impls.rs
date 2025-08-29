@@ -349,6 +349,14 @@ impl Float {
         neg
     }
 
+    pub fn is_recurring(&self) -> bool {
+        float_kind(self) == FloatKind::Recurring
+    }
+
+    pub fn is_irrational(&self) -> bool {
+        float_kind(self) == FloatKind::Irrational
+    }
+
     pub fn to_f64(&self) -> Result<f64, i16> {
         // Fast path: if we already have a BigDecimal (or small float convertible), use it directly.
         if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
