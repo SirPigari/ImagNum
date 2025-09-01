@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.11] - 2025-8-29
+
+- Bugfix: `to_usize` on `Int` now allows zero 
+
 ## [0.2.10] - 2025-8-29
 
 - Fixed recurring parsing

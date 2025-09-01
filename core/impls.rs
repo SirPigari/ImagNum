@@ -268,7 +268,7 @@ impl Int {
             return Err(ERR_INFINITE_RESULT);
         }
         let (digits, negative, _k) = int_to_parts(self);
-        if negative || digits.is_empty() || digits == "0" {
+        if negative || digits.is_empty() {
             return Err(ERR_NEGATIVE_RESULT);
         }
 
