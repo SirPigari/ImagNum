@@ -68,18 +68,10 @@ impl Int {
                 }
             }
             (false, true) => {
-                let (odigits, oneg, _k) = int_to_parts(other);
-                let other_int = match BigInt::from_str(&odigits) {
-                    Ok(bi) => {
-                        if oneg {
-                            Int::Big(-bi)
-                        } else {
-                            Int::Big(bi)
-                        }
-                    }
-                    Err(_) => Int::new(),
-                };
-                self._sub(&other_int)
+                // A + (-B) => A - B : subtract the magnitude of `other`
+                let (odigits, _oneg, _k) = int_to_parts(other);
+                let other_pos = make_int_from_parts(odigits.clone(), false, FloatKind::Finite);
+                self._sub(&other_pos)
             }
             (true, false) => {
                 // (-A) + B = B - A
@@ -268,7 +260,7 @@ impl Int {
             return Err(ERR_INFINITE_RESULT);
         }
         let (digits, negative, _k) = int_to_parts(self);
-        if negative || digits.is_empty() || digits == "0" {
+        if negative || digits.is_empty() {
             return Err(ERR_NEGATIVE_RESULT);
         }
 
