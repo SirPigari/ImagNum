@@ -2,14 +2,14 @@ use crate::compat::{
     float_is_zero, float_kind, float_to_parts, int_is_infinite, int_is_nan, int_to_parts,
     int_to_string, make_float_from_parts, make_int_from_parts,
 };
-use crate::foundation::{Float, FloatKind, Int};
+use crate::foundation::{Float, FloatKind, Int, SmallInt};
 use crate::functions::{create_float, create_int};
 use crate::math::{
     ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
-    ERR_NEGATIVE_SQRT, ERR_UNIMPLEMENTED, add_float, add_strings, ceil_float, ceil_int, cos_float,
-    cos_int, div_float, div_strings, exp_float, exp_int, floor_float, floor_int, is_string_odd,
-    ln_float, ln_int, log10_float, mod_float, mod_strings, mul_float, mul_strings, pow_strings,
-    sin_float, sin_int, sqrt_float, sqrt_int, sub_float, sub_strings, tan_float, tan_int,
+    ERR_NEGATIVE_SQRT, ERR_UNIMPLEMENTED, add_float, ceil_float, ceil_int, cos_float,
+    cos_int, div_float, exp_float, exp_int, floor_float, floor_int, is_string_odd,
+    ln_float, ln_int, log10_float, mod_float, mul_float, pow_strings,
+    sin_float, sin_int, sqrt_float, sqrt_int, sub_float, tan_float, tan_int,
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
@@ -21,21 +21,35 @@ use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 impl Int {
+    fn smallint_to_bigint(si: &SmallInt) -> BigInt {
+        match si {
+            SmallInt::I8(v) => BigInt::from(*v),
+            SmallInt::U8(v) => BigInt::from(*v),
+            SmallInt::I16(v) => BigInt::from(*v),
+            SmallInt::U16(v) => BigInt::from(*v),
+            SmallInt::I32(v) => BigInt::from(*v),
+            SmallInt::U32(v) => BigInt::from(*v),
+            SmallInt::I64(v) => BigInt::from(*v),
+            SmallInt::U64(v) => BigInt::from(*v),
+            SmallInt::I128(v) => BigInt::from(*v),
+            SmallInt::U128(v) => BigInt::from(*v),
+            SmallInt::USize(v) => BigInt::from(*v),
+            SmallInt::ISize(v) => BigInt::from(*v),
+        }
+    }
+
     pub fn is_negative(&self) -> bool {
         let (_d, neg, _k) = int_to_parts(self);
         neg
     }
 
     pub fn to_float(&self) -> Result<Float, i16> {
-        // Convert integer into Float::Big
         match self {
             Int::Big(bi) => {
-                // Construct BigDecimal from BigInt directly to avoid string parsing
                 let bd = BigDecimal::from(bi.clone());
                 Ok(Float::Big(bd))
             }
             Int::Small(_) => {
-                // Use string conversion for small ints
                 let s = int_to_string(self);
                 match BigDecimal::from_str(&s) {
                     Ok(bd) => Ok(Float::Big(bd)),
@@ -45,127 +59,70 @@ impl Int {
         }
     }
     pub fn _add(&self, other: &Self) -> Result<Self, i16> {
-        let (_sd, sneg, _sk) = int_to_parts(self);
-        let (_od, oneg, _ok) = int_to_parts(other);
-        match (sneg, oneg) {
-            (false, false) => {
-                let (digits, _) = add_strings(&int_to_string(self), &int_to_string(other))?;
-                let digits = normalize_int_digits(&digits);
-                match BigInt::from_str(&digits) {
-                    Ok(bi) => Ok(Int::Big(bi)),
-                    Err(_) => Ok(Int::new()),
-                }
-            }
-            (true, true) => {
-                let (digits, _) = add_strings(&int_to_string(self), &int_to_string(other))?;
-                let digits = normalize_int_digits(&digits);
-                match BigInt::from_str(&digits) {
-                    Ok(mut bi) => {
-                        bi = -bi;
-                        Ok(Int::Big(bi))
-                    }
-                    Err(_) => Ok(Int::new()),
-                }
-            }
-            (false, true) => {
-                let (odigits, oneg, _k) = int_to_parts(other);
-                let other_int = match BigInt::from_str(&odigits) {
-                    Ok(bi) => {
-                        if oneg {
-                            Int::Big(-bi)
-                        } else {
-                            Int::Big(bi)
-                        }
-                    }
-                    Err(_) => Int::new(),
-                };
-                self._sub(&other_int)
-            }
-            (true, false) => {
-                // (-A) + B = B - A
-                let (sd, _sneg, _k) = int_to_parts(self);
-                let self_pos = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
-                let res = other._sub(&self_pos)?;
-                Ok(res)
-            }
-        }
+        let a = match self {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        let b = match other {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        Ok(Int::Big(a + b))
     }
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
-        let (sd, sneg, _sk) = int_to_parts(self);
-        let (od, oneg, _ok) = int_to_parts(other);
-        match (sneg, oneg) {
-            (false, false) => {
-                let (digits, sign_flipped) = sub_strings(&sd, &od)?;
-                let digits = normalize_int_digits(&digits);
-                let negative = if digits == "0" { false } else { sign_flipped };
-                Ok(make_int_from_parts(digits, negative, FloatKind::Finite))
-            }
-            (true, true) => {
-                // -(A) - -(B) = B - A
-                let left = make_int_from_parts(od.clone(), false, FloatKind::Finite);
-                let right = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
-                let res = left._sub(&right)?;
-                // result sign already correct
-                Ok(res)
-            }
-            (false, true) => {
-                let other_pos = make_int_from_parts(od.clone(), false, FloatKind::Finite);
-                self._add(&other_pos)
-            }
-            (true, false) => {
-                let self_pos = make_int_from_parts(sd.clone(), false, FloatKind::Finite);
-                let res = self_pos._add(other)?;
-                // flip sign
-                Ok(-res)
-            }
-        }
+        let a = match self {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        let b = match other {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        Ok(Int::Big(a - b))
     }
     pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
-        let (digits, sign_flipped) = mul_strings(&int_to_string(self), &int_to_string(other))?;
-        let digits = normalize_int_digits(&digits);
-        let (_d, sneg, _k) = int_to_parts(self);
-        let (_od, oneg, _k2) = int_to_parts(other);
-        let negative = sneg ^ oneg ^ sign_flipped;
-        match BigInt::from_str(&digits) {
-            Ok(mut bi) => {
-                if negative {
-                    bi = -bi
-                };
-                Ok(Int::Big(bi))
-            }
-            Err(_) => Ok(Int::new()),
-        }
+        let a = match self {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        let b = match other {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        Ok(Int::Big(a * b))
     }
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
-        let (digits, sign_flipped) = div_strings(&int_to_string(self), &int_to_string(other))?;
-        let digits = normalize_int_digits(&digits);
-        let (_d, sneg, _k) = int_to_parts(self);
-        let (_od, oneg, _k2) = int_to_parts(other);
-        let negative = sneg ^ oneg ^ sign_flipped;
-        match BigInt::from_str(&digits) {
-            Ok(mut bi) => {
-                if negative {
-                    bi = -bi
-                };
-                Ok(Int::Big(bi))
-            }
-            Err(_) => Ok(Int::new()),
-        }
+        let a = match self {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        let b = match other {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        if b.is_zero() { return Err(ERR_DIV_BY_ZERO); }
+        let (quot, rem) = (a.clone() / b.clone(), a.clone() % b.clone());
+        if rem.is_zero() { return Ok(Int::Big(quot)); }
+        let two = BigInt::from(2);
+        let abs_rem_times_two = rem.abs() * &two;
+        let abs_b = b.abs();
+        let same_sign = a.is_negative() == b.is_negative();
+        let rounded = if abs_rem_times_two >= abs_b {
+            if same_sign { quot + BigInt::from(1) } else { quot - BigInt::from(1) }
+        } else { quot };
+        Ok(Int::Big(rounded))
     }
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
-        let (digits, sign_flipped) = mod_strings(&int_to_string(self), &int_to_string(other))?;
-        let digits = normalize_int_digits(&digits);
-        let (_d, sneg, _k) = int_to_parts(self);
-        let negative = sneg ^ sign_flipped;
-        match BigInt::from_str(&digits) {
-            Ok(mut bi) => {
-                if negative {
-                    bi = -bi
-                };
-                Ok(Int::Big(bi))
-            }
-            Err(_) => Ok(Int::new()),
-        }
+        let a = match self {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        let b = match other {
+            Int::Big(bi) => bi.clone(),
+            Int::Small(si) => Int::smallint_to_bigint(si),
+        };
+        if b.is_zero() { return Err(ERR_DIV_BY_ZERO); }
+        Ok(Int::Big(a % b))
     }
     pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
         let (ed, eneg, _ek) = int_to_parts(exponent);
@@ -183,8 +140,6 @@ impl Int {
         Ok(make_int_from_parts(digits, negative, FloatKind::Finite))
     }
     pub fn sqrt(&self) -> Result<Float, i16> {
-        // For negative integers, return imaginary complex
-        // Convert to BigDecimal and take sqrt via Float::Big
         let (mant, neg, _k) = int_to_parts(self);
         let (m2, e2, neg2, is_irr) = sqrt_int(mant, neg)?;
         if is_irr {
@@ -198,7 +153,6 @@ impl Int {
         make_int_from_parts(digits, false, FloatKind::Finite)
     }
 
-    // Transcendental wrappers for Int: return Float (may be irrational)
     pub fn sin(&self) -> Result<Float, i16> {
         let (digits, neg, _k) = int_to_parts(self);
         let (m, e, neg2, is_irr) = sin_int(digits, neg)?;
@@ -260,20 +214,35 @@ impl Int {
         digits.is_empty() || digits == "0"
     }
     pub fn to_usize(&self) -> Result<usize, i16> {
-        // check for invalid or infinite via compat
         if int_is_nan(self) {
             return Err(ERR_INVALID_FORMAT);
         }
         if int_is_infinite(self) {
             return Err(ERR_INFINITE_RESULT);
         }
-        let (digits, negative, _k) = int_to_parts(self);
-        if negative || digits.is_empty() {
-            return Err(ERR_NEGATIVE_RESULT);
+        match self {
+            Int::Big(bi) => {
+                if bi.is_negative() {
+                    return Err(ERR_NEGATIVE_RESULT);
+                }
+                bi.to_usize().ok_or(ERR_INVALID_FORMAT)
+            }
+            Int::Small(si) => {
+                match si {
+                    SmallInt::USize(v) => Ok(*v),
+                    SmallInt::U64(v) => Ok(*v as usize),
+                    SmallInt::U32(v) => Ok(*v as usize),
+                    SmallInt::U16(v) => Ok(*v as usize),
+                    SmallInt::U8(v) => Ok(*v as usize),
+                    SmallInt::ISize(v) if *v >= 0 => Ok(*v as usize),
+                    SmallInt::I64(v) if *v >= 0 => Ok(*v as usize),
+                    SmallInt::I32(v) if *v >= 0 => Ok(*v as usize),
+                    SmallInt::I16(v) if *v >= 0 => Ok(*v as usize),
+                    SmallInt::I8(v) if *v >= 0 => Ok(*v as usize),
+                    _ => Err(ERR_NEGATIVE_RESULT),
+                }
+            }
         }
-
-        let value: usize = digits.parse().map_err(|_| ERR_INVALID_FORMAT)?;
-        Ok(value)
     }
     pub fn to_i64(&self) -> Result<i64, i16> {
         if int_is_nan(self) {
@@ -282,18 +251,23 @@ impl Int {
         if int_is_infinite(self) {
             return Err(ERR_INFINITE_RESULT);
         }
-
-        let (digits, negative, _k) = int_to_parts(self);
-        if digits.is_empty() || digits == "0" {
-            return Ok(0 as i64);
+        match self {
+            Int::Big(bi) => bi.to_i64().ok_or(ERR_INVALID_FORMAT),
+            Int::Small(si) => match si {
+                SmallInt::I64(v) => Ok(*v),
+                SmallInt::U64(v) => Ok(*v as i64),
+                SmallInt::I32(v) => Ok(*v as i64),
+                SmallInt::U32(v) => Ok(*v as i64),
+                SmallInt::I16(v) => Ok(*v as i64),
+                SmallInt::U16(v) => Ok(*v as i64),
+                SmallInt::I8(v) => Ok(*v as i64),
+                SmallInt::U8(v) => Ok(*v as i64),
+                SmallInt::I128(v) => (*v).try_into().map_err(|_| ERR_INVALID_FORMAT),
+                SmallInt::U128(v) => (*v).try_into().map_err(|_| ERR_INVALID_FORMAT),
+                SmallInt::ISize(v) => Ok(*v as i64),
+                SmallInt::USize(v) => Ok(*v as i64),
+            },
         }
-
-        let value = if negative {
-            -digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
-        } else {
-            digits.parse::<i64>().map_err(|_| ERR_INVALID_FORMAT)?
-        };
-        Ok(value)
     }
     pub fn to_i128(&self) -> Result<i128, i16> {
         if int_is_nan(self) {
@@ -302,20 +276,32 @@ impl Int {
         if int_is_infinite(self) {
             return Err(ERR_INFINITE_RESULT);
         }
-
-        let (digits, negative, _k) = int_to_parts(self);
-        if digits.is_empty() || digits == "0" {
-            return Ok(0 as i128);
+        match self {
+            Int::Big(bi) => bi.to_i128().ok_or(ERR_INVALID_FORMAT),
+            Int::Small(si) => match si {
+                SmallInt::I128(v) => Ok(*v),
+                SmallInt::U128(v) => Ok(*v as i128),
+                SmallInt::I64(v) => Ok(*v as i128),
+                SmallInt::U64(v) => Ok(*v as i128),
+                SmallInt::I32(v) => Ok(*v as i128),
+                SmallInt::U32(v) => Ok(*v as i128),
+                SmallInt::I16(v) => Ok(*v as i128),
+                SmallInt::U16(v) => Ok(*v as i128),
+                SmallInt::I8(v) => Ok(*v as i128),
+                SmallInt::U8(v) => Ok(*v as i128),
+                SmallInt::ISize(v) => Ok(*v as i128),
+                SmallInt::USize(v) => Ok(*v as i128),
+            },
         }
-
-        let value = if negative {
-            -digits.parse::<i128>().map_err(|_| ERR_INVALID_FORMAT)?
-        } else {
-            digits.parse::<i128>().map_err(|_| ERR_INVALID_FORMAT)?
-        };
-        Ok(value)
     }
     pub fn from_i64(value: i64) -> Self {
+        if value < 0 {
+            make_int_from_parts(value.abs().to_string(), true, FloatKind::Finite)
+        } else {
+            make_int_from_parts(value.to_string(), false, FloatKind::Finite)
+        }
+    }
+    pub fn from_i128(value: i128) -> Self {
         if value < 0 {
             make_int_from_parts(value.abs().to_string(), true, FloatKind::Finite)
         } else {
@@ -338,7 +324,6 @@ impl Int {
     pub fn is_infinity(&self) -> bool {
         int_is_infinite(self)
     }
-    /// Plain string representation for Int (same as Display but returns String).
     pub fn to_str(&self) -> String {
         format!("{}", self)
     }
@@ -359,11 +344,9 @@ impl Float {
     }
 
     pub fn to_f64(&self) -> Result<f64, i16> {
-        // Fast path: if we already have a BigDecimal (or small float convertible), use it directly.
         if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
             return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
         }
-        // Handle NaN/Infinity explicitly
         let k = float_kind(self);
         if k == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
@@ -387,7 +370,6 @@ impl Float {
         if kind == FloatKind::NegInfinity || self.is_negative() {
             return Err(ERR_NEGATIVE_SQRT);
         }
-        // Use math helper to get truncated, possibly irrational result
         let (m, e, neg, _k) = float_to_parts(self);
         let (m, e, neg, is_irr) = sqrt_float(m, e, neg)?;
         if is_irr {
@@ -399,6 +381,19 @@ impl Float {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
+
+        let k1 = float_kind(self);
+        let k2 = float_kind(other);
+        if k1 == FloatKind::Finite && k2 == FloatKind::Finite {
+            if let (Some(a_bd), Some(b_bd)) = (
+                crate::compat::float_to_bigdecimal(self),
+                crate::compat::float_to_bigdecimal(other),
+            ) {
+                let res = a_bd + b_bd;
+                return Ok(Float::Big(res));
+            }
+        }
+
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
             return Ok(Float::Infinity);
         }
@@ -416,7 +411,6 @@ impl Float {
         let (m1, e1, n1, _k1) = float_to_parts(self);
         let (m2, e2, n2, _k2) = float_to_parts(other);
         let (mantissa, exponent, negative) = add_float(m1.clone(), e1, n1, m2.clone(), e2, n2)?;
-        // If either operand was recurring, keep the result as recurring so display shows the repeating cycle
         let result_kind = if float_kind(self) == FloatKind::Recurring
             || float_kind(other) == FloatKind::Recurring
         {
@@ -435,6 +429,19 @@ impl Float {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
+
+        let k1 = float_kind(self);
+        let k2 = float_kind(other);
+        if k1 == FloatKind::Finite && k2 == FloatKind::Finite {
+            if let (Some(a_bd), Some(b_bd)) = (
+                crate::compat::float_to_bigdecimal(self),
+                crate::compat::float_to_bigdecimal(other),
+            ) {
+                let res = a_bd - b_bd;
+                return Ok(Float::Big(res));
+            }
+        }
+
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
             return Ok(make_float_from_parts(
                 "0".to_string(),
@@ -480,6 +487,19 @@ impl Float {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
+
+        let k1 = float_kind(self);
+        let k2 = float_kind(other);
+        if k1 == FloatKind::Finite && k2 == FloatKind::Finite {
+            if let (Some(a_bd), Some(b_bd)) = (
+                crate::compat::float_to_bigdecimal(self),
+                crate::compat::float_to_bigdecimal(other),
+            ) {
+                let res = a_bd * b_bd;
+                return Ok(Float::Big(res));
+            }
+        }
+
         if float_kind(self) == FloatKind::Infinity || float_kind(other) == FloatKind::Infinity {
             let neg = self.is_negative() ^ other.is_negative();
             return Ok(if neg {
@@ -522,6 +542,7 @@ impl Float {
         if float_is_zero(other) {
             return Err(ERR_DIV_BY_ZERO);
         }
+
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {
             return Ok(Float::NaN);
         }
@@ -545,15 +566,12 @@ impl Float {
         let (m1, e1, n1, _) = float_to_parts(self);
         let (m2, e2, n2, _) = float_to_parts(other);
 
-        // If both operands are integer-like (no fractional part), attempt exact rational detection
         let self_is_int_like =
             e1 >= 0 || (e1 < 0 && (-(e1) as usize) <= m1.len() && m1.chars().all(|c| c == '0'));
         let other_is_int_like =
             e2 >= 0 || (e2 < 0 && (-(e2) as usize) <= m2.len() && m2.chars().all(|c| c == '0'));
 
         if self_is_int_like && other_is_int_like {
-            // Build BigInt numerator and denominator from mantissas and exponents
-            // numerator = m1 * 10^{max(0, -e1)}; denominator = m2 * 10^{max(0, -e2)}
             let mut num_str = m1.clone();
             if e1 < 0 {
                 num_str.push_str(&"0".repeat((-e1) as usize));
@@ -567,13 +585,11 @@ impl Float {
             if den.is_zero() {
                 return Err(ERR_DIV_BY_ZERO);
             }
-            // Reduce
             let g = num.clone().abs().gcd(&den.clone().abs());
             if !g.is_zero() {
                 num = num / &g;
                 den = den / &g;
             }
-            // remove factors 2 and 5 from denominator to determine recurring
             let mut d = den.clone().abs();
             while (&d % BigInt::from(2u32)).is_zero() {
                 d = d / BigInt::from(2u32);
@@ -582,22 +598,13 @@ impl Float {
                 d = d / BigInt::from(5u32);
             }
 
-            // produce a BigDecimal that preserves the repeating cycle by performing
-            // long division on the integer numerator/denominator and repeating the
-            // detected cycle many times. This avoids small rounding artifacts when
-            // using BigDecimal division directly and lets the Display path reconstruct
-            // compact recurring notation (e.g. 1/6 -> 0.1(6)).
             let den_abs = den.clone().abs();
             let num_abs = num.clone().abs();
-            // sign: numerator negative xor denominator negative
             let neg = n1 ^ n2;
-            // integer part
             let int_part = (&num_abs / &den_abs).to_string();
             let mut rem = num_abs % &den_abs;
-            // build fractional digits via long division, track remainders
             let mut seen: HashMap<BigInt, usize> = HashMap::new();
             let mut digits: Vec<char> = Vec::new();
-            // raise the cap so we don't accidentally stop mid-cycle for common denominators
             let max_digits = 10000usize;
             while !rem.is_zero() && !seen.contains_key(&rem) && digits.len() < max_digits {
                 seen.insert(rem.clone(), digits.len());
@@ -609,7 +616,6 @@ impl Float {
 
             let mut frac_str = String::new();
             if digits.is_empty() {
-                // terminating (unlikely in recurring path) — return Big
                 let s_out = if neg { format!("-{}.0", int_part) } else { format!("{}.0", int_part) };
                 let bd = BigDecimal::from_str(&s_out).unwrap_or_else(|_| BigDecimal::from(0));
                 return Ok(Float::Big(bd));
@@ -618,9 +624,6 @@ impl Float {
                     let start = *start;
                     let nonrep: String = digits[..start].iter().collect();
                     let rep: String = digits[start..].iter().collect();
-                    // repeat the minimal repeating block several times so the
-                    // stored BigDecimal ends with whole repeats and the Display
-                    // path can deterministically detect the period.
                     let min_repeats = 4usize;
                     let repeat_count = min_repeats;
                     frac_str.push_str(&nonrep);
@@ -628,12 +631,10 @@ impl Float {
                         frac_str.push_str(&rep);
                     }
                 } else {
-                    // no cycle found within limit — just repeat all digits
                     for d in digits.iter() { frac_str.push(*d); }
                 }
             }
 
-            // Construct BigDecimal exactly: (int_part || frac_str) as BigInt with scale = frac_len
             let digits_concat = format!("{}{}", int_part.trim_start_matches('-'), frac_str);
             match BigInt::from_str(&digits_concat) {
                 Ok(mut bi) => {
@@ -645,7 +646,6 @@ impl Float {
                     return Ok(Float::Recurring(bd));
                 }
                 Err(_) => {
-                    // fallback to parsing string
                     let s_out = if neg { format!("-{}.{}", int_part, frac_str) } else { format!("{}.{}", int_part, frac_str) };
                     let bd = BigDecimal::from_str(&s_out).unwrap_or_else(|_| BigDecimal::from(0));
                     return Ok(Float::Recurring(bd));
@@ -705,9 +705,6 @@ impl Float {
             });
         }
 
-        // Convert operands to f64 using the provided conversion helper. This handles
-        // BigDecimal-backed floats and avoids brittle string-length checks that
-        // rejected long fractional exponents.
         let base_f64 = match self.to_f64() {
             Ok(v) => v,
             Err(_) => return Err(ERR_INVALID_FORMAT),
@@ -781,7 +778,6 @@ impl Float {
         make_float_from_parts(_m, _e, false, k)
     }
 
-    // Transcendental wrappers for Float
     pub fn sin(&self) -> Result<Self, i16> {
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = sin_float(m, e, neg)?;
@@ -852,7 +848,6 @@ impl Float {
             return Err(ERR_INVALID_FORMAT);
         }
         if int_is_infinite(int) {
-            // compat: map to float infinity
             let (_d, neg, _k) = int_to_parts(int);
             return Ok(if neg {
                 Float::NegInfinity
@@ -1065,34 +1060,26 @@ impl Float {
 
         if k == FloatKind::Recurring {
             if let Float::Recurring(ref bd) = *self {
-                // If the recurring BigDecimal is exactly an integer (e.g. 0.(9) == 1),
-                // return the integer string instead of a fixed fractional expansion.
                 let n = bd.normalized();
                 let int_candidate = n.with_scale(0);
                 if n == int_candidate {
                     return int_candidate.normalized().to_string();
                 }
 
-                // If normalized form is a short finite decimal (e.g. 0.5), return it.
                 let s_norm = n.normalized().to_string();
                 if s_norm.contains('.') {
                     let parts: Vec<&str> = s_norm.split('.').collect();
                     let frac = parts[1];
-                    // If fractional length is reasonably small, prefer the exact normalized string
                     if frac.len() <= 20 {
                         return s_norm;
                     }
                 } else {
-                    // integer-like already handled, but if no '.' present just return
                     return s_norm;
                 }
 
-                // Otherwise create a truncated BigDecimal with scale = 10 (exactly 10 fractional digits)
                 let t = bd.with_scale(10);
-                // to_string will produce a non-scientific form when scale is set
                 let s = t.to_string();
                 if s.contains('.') {
-                    // ensure exactly 10 digits after decimal point
                     let parts: Vec<&str> = s.split('.').collect();
                     let int_part = parts[0];
                     let mut frac = parts[1].to_string();
@@ -1108,12 +1095,9 @@ impl Float {
             }
         }
 
-        // For Finite/Irrational/Big cases, try to use BigDecimal directly to avoid string roundtrips
         if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
-            // For irrational, BigDecimal already contains the truncated value (no trailing dots)
             return bd.normalized().to_string();
         }
-        // Fallback to Display
         format!("{}", self)
     }
     pub fn make_irrational(&mut self) -> Self {
@@ -1212,8 +1196,6 @@ impl LowerHex for Int {
     }
 }
 
-// Formatting traits for Float: Not very meaningful to implement binary/oct/lowerhex on floats,
-// so let's just fallback to error for now
 impl Binary for Float {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Err(std::fmt::Error)

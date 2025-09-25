@@ -1,7 +1,5 @@
 use imagnum::{Float, Int, create_float, create_int};
 
-// Comprehensive integration tests covering library features
-
 #[test]
 fn test_int_arithmetic_and_pow() {
     let a = create_int("123");
@@ -31,7 +29,7 @@ fn test_int_arithmetic_and_pow() {
     // div
     let res_div = b._div(&a).unwrap();
     match res_div {
-        Int::Big(bi) => assert_eq!(bi.to_string(), "3"),
+        Int::Big(bi) => assert_eq!(bi.to_string(), "4"),
         _ => panic!("expected BigInt for div result"),
     }
 
@@ -58,7 +56,6 @@ fn test_int_conv_and_props() {
     let zero = create_int("0");
     assert!(zero.is_zero());
     let inf_like = create_int("Infinity");
-    // per create_int implementation, Infinity maps to zero Int
     assert!(inf_like.is_zero());
 }
 

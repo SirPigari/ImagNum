@@ -3,7 +3,6 @@ use crate::compat::{
     make_float_from_parts,
 };
 use crate::foundation::{Float, FloatKind, Int};
-// (no unused bigdecimal helpers/imports here)
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{
@@ -50,7 +49,6 @@ impl Rem for Int {
     }
 }
 
-// Reference-based ops for Int: allow `&a + &b` without cloning
 impl<'a> Add<&'a Int> for &'a Int {
     type Output = Result<Int, i16>;
     fn add(self, other: &'a Int) -> Self::Output {
@@ -58,7 +56,6 @@ impl<'a> Add<&'a Int> for &'a Int {
     }
 }
 
-// Mixed ref/value impls for Int: allow `a + &b` and `&a + b`
 impl<'a> Add<&'a Int> for Int {
     type Output = Result<Int, i16>;
     fn add(self, other: &'a Int) -> Self::Output {
@@ -163,11 +160,9 @@ impl Neg for Int {
     fn neg(self) -> Self::Output {
         match self {
             Int::Big(b) => {
-                // Negate BigInt
                 Int::Big(-b)
             }
             Int::Small(s) => {
-                // Convert small to Big for simplicity
                 let s_str = int_to_string(&Int::Small(s));
                 match s_str.parse::<i128>() {
                     Ok(v) => Int::Big((-v).into()),
@@ -207,10 +202,6 @@ impl RemAssign for Int {
         *self = self._modulo(&other).unwrap_or_else(|_| Int::new());
     }
 }
-
-// PartialEq for Float is provided by the derived implementation in foundation::Float.
-// The older string-based equality logic relied on normalizing mantissa and exponent;
-// keep `normalize` helper available for any compat-based comparisons if needed.
 
 fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
     let mut digits = mantissa.trim_start_matches('0').to_string();
@@ -333,7 +324,6 @@ impl Rem for Float {
     }
 }
 
-// Reference-based ops for Float: allow `&a + &b` without cloning
 impl<'a> Add<&'a Float> for &'a Float {
     type Output = Result<Float, i16>;
     fn add(self, other: &'a Float) -> Self::Output {
@@ -369,7 +359,6 @@ impl<'a> Rem<&'a Float> for &'a Float {
     }
 }
 
-// Mixed ref/value impls for Float: allow `a + &b` and `&a + b`
 impl<'a> Add<&'a Float> for Float {
     type Output = Result<Float, i16>;
     fn add(self, other: &'a Float) -> Self::Output {
@@ -494,7 +483,6 @@ impl PartialOrd for Float {
         let (mut self_man, self_exp) = normalize(&self_man, self_exp);
         let (mut other_man, other_exp) = normalize(&other_man, other_exp);
 
-        // Pad zeros on the LEFT to align exponents
         if self_exp > other_exp {
             let diff = (self_exp - other_exp) as usize;
             other_man = format!("{}{}", "0".repeat(diff), other_man);
@@ -503,7 +491,6 @@ impl PartialOrd for Float {
             self_man = format!("{}{}", "0".repeat(diff), self_man);
         }
 
-        // Now pad zeros on the RIGHT to equalize mantissa lengths
         let max_len = self_man.len().max(other_man.len());
         if self_man.len() < max_len {
             self_man = format!("{}{}", self_man, "0".repeat(max_len - self_man.len()));
@@ -512,7 +499,6 @@ impl PartialOrd for Float {
             other_man = format!("{}{}", other_man, "0".repeat(max_len - other_man.len()));
         }
 
-        // Compare digit by digit
         for (a, b) in self_man.chars().zip(other_man.chars()) {
             if a != b {
                 let cmp = a.cmp(&b);
@@ -538,11 +524,8 @@ impl Display for Float {
             return Ok(());
         }
 
-        // Special formatting for recurring rationals: show smallest repeating cycle like 0.(3) or 0.1(6)
         if k == FloatKind::Recurring {
-            // `self` is a &Float; destructure without moving.
             if let Float::Recurring(ref bd) = *self {
-                // Convert BigDecimal to a normalized decimal string and reconstruct digits
                 let s = bd.normalized().to_string();
                 let parts: Vec<&str> = s.split('E').collect();
                 let base = parts[0];
@@ -552,7 +535,6 @@ impl Display for Float {
                     0
                 };
 
-                // Build a digits string (mantissa without dot) and compute final exponent
                 let (digits, exp_decimal) = if let Some(dot) = base.find('.') {
                     let mantissa = base[..dot].to_string() + &base[dot + 1..];
                     (
@@ -564,7 +546,6 @@ impl Display for Float {
                 };
                 let final_exp = exp_decimal + exp_from_e;
 
-                // Determine integer and fractional parts using final_exp
                 let (int_part, frac_part) = if digits.is_empty() {
                     ("0".to_string(), String::new())
                 } else {
@@ -584,16 +565,11 @@ impl Display for Float {
                     }
                 };
 
-                // track negativity
                 let neg = base.starts_with('-');
 
-                // Limit analysis length to avoid pathological long scans
                 let max_check = frac_part.len().min(500);
                 let frac = &frac_part[..max_check];
 
-                // Find smallest repeating cycle: try every possible repeating cycle
-                // length first (smallest period), then smallest non-repeating prefix
-                // so we prefer 0.1(6) over 0.(16666).
                 let mut found: Option<(usize, usize)> = None;
                 'outer: for rep_len in 1..=frac.len() {
                     for nonrep_len in 0..=frac.len().saturating_sub(rep_len) {
@@ -602,11 +578,6 @@ impl Display for Float {
                             continue;
                         }
                         let rep = &frac[start..start + rep_len];
-                        // verify that the remainder of `frac` starting at `start` is consistent
-                        // with rep repeated (last repetition may be truncated)
-                        // ignore candidates that only appear as a single trailing partial
-                        // repetition (e.g. a lone '7' at the end) by requiring at least
-                        // two full repetitions in the remaining suffix.
                         let mut ok = true;
                         let remaining = frac.len() - start;
                         if remaining < rep_len * 2 {
@@ -639,7 +610,6 @@ impl Display for Float {
                     write!(f, "{}({})", nonrep, rep)?;
                     return Ok(());
                 }
-                // fallback: let the generic formatter below render it
             }
         }
 

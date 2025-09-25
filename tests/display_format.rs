@@ -4,7 +4,6 @@ use imagnum::create_int;
 fn test_recurring_display_1_over_3() {
     let one = create_int("1");
     let three = create_int("3");
-    // perform integer division via float conversion to ensure recurring detection path
     let f1 = one.to_float().unwrap();
     let f3 = three.to_float().unwrap();
     let res = f1._div(&f3).unwrap();

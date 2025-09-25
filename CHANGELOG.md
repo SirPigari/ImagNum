@@ -2,9 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.13] - 2025-9-25
+
+- Removed a bunch of unnecessary code.
+
+## [0.2.12] - 2025-9-21
+
+- Bugfix: `1 + -1` now results correctly to `0`
+
 ## [0.2.11] - 2025-8-29
 
-- Bugfix: `to_usize` on `Int` now allows zero 
+- Bugfix: `to_usize` on `Int` now allows zero  
 
 ## [0.2.10] - 2025-8-29
 

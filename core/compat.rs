@@ -105,8 +105,6 @@ pub fn float_is_zero(f: &Float) -> bool {
     }
 }
 
-/// Convert a `Float` to `BigDecimal` when possible without serializing to strings.
-/// Returns `None` for NaN/Infinity/Complex variants.
 pub fn float_to_bigdecimal(f: &Float) -> Option<BigDecimal> {
     match f {
         Float::Big(bd) | Float::Irrational(bd) | Float::Recurring(bd) => Some(bd.clone()),
@@ -149,10 +147,8 @@ pub fn int_to_parts(i: &Int) -> (String, bool, FloatKind) {
 }
 
 pub fn make_int_from_parts(digits: String, negative: bool, _kind: FloatKind) -> Int {
-    // Int cannot represent NaN/Infinity in the new foundation; ignore _kind
     match BigDecimal::from_str(&digits) {
         Ok(_) => {
-            // parse into BigInt
             match BigInt::from_str(&digits) {
                 Ok(mut bi) => {
                     if negative {
@@ -164,7 +160,6 @@ pub fn make_int_from_parts(digits: String, negative: bool, _kind: FloatKind) -> 
             }
         }
         Err(_) => {
-            // fallback to BigInt parse attempt
             match BigInt::from_str(&digits) {
                 Ok(mut bi) => {
                     if negative {
@@ -195,17 +190,13 @@ pub fn make_float_from_parts(
         }
         FloatKind::NegInfinity => Float::NegInfinity,
         FloatKind::Irrational | FloatKind::Finite | FloatKind::Recurring => {
-            // Build BigDecimal from mantissa and exponent: mantissa * 10^exponent
-            // mantissa is digits without decimal point
             let mut s = mantissa;
             if s.is_empty() {
                 s = "0".to_string();
             }
-            // insert sign
             if negative && !s.starts_with('-') {
                 s = format!("-{}", s);
             }
-            // Construct BigDecimal by applying scale = -exponent
             if let Ok(bi) = BigInt::from_str(&s) {
                 let scale = -(exponent as i64);
                 let bd = BigDecimal::new(bi, scale);
@@ -217,7 +208,6 @@ pub fn make_float_from_parts(
                     Float::Big(bd)
                 }
             } else {
-                // fallback: try parsing as BigDecimal string
                 let s2 = if exponent == 0 {
                     s.clone()
                 } else {
@@ -238,7 +228,6 @@ pub fn make_float_from_parts(
             }
         }
         FloatKind::Complex | FloatKind::Imaginary => {
-            // Can't reconstruct complex from parts; return NaN
             Float::NaN
         }
     }

@@ -14,18 +14,15 @@ pub fn create_int(int: &str) -> Int {
         return Int::new();
     }
 
-    // Integers shouldn't accept NaN/Infinity — those are floats. Return 0 for those inputs.
     let low = s.to_ascii_lowercase();
     if low == "nan" || low == "inf" || low == "infinity" || low == "-inf" || low == "-infinity" {
         return Int::new();
     }
 
-    // Reject floats passed as ints (contain '.') -> return zero Int
     if s.contains('.') {
         return Int::new();
     }
 
-    // Parse into BigInt; try small optimizations later
     match BigInt::from_str(s) {
         Ok(b) => Int::Big(b),
         Err(_) => Int::new(),
@@ -49,10 +46,8 @@ pub fn create_float(float: &str) -> Float {
         return Float::NegInfinity;
     }
 
-    // Imaginary numbers ending with i -> treat as complex (0 + 1i * value)
     if lower.ends_with('i') {
         let without_i = &s[..s.len() - 1];
-        // parse the coefficient; default 1
         let coeff = if without_i.is_empty() || without_i == "+" {
             "1"
         } else if without_i == "-" {
@@ -66,14 +61,10 @@ pub fn create_float(float: &str) -> Float {
         return Float::Complex(Box::new(zero), Box::new(imag));
     }
 
-    // Otherwise parse as BigDecimal
-    // Support recurring decimal notation like 0.(9) or -1.2(34)
     if let Some(lp) = s.find('(') {
         if s.ends_with(')') {
-            // split into before '(' and repeating digits
             let repeat = &s[lp + 1..s.len() - 1];
             let before = &s[..lp];
-            // before should contain optional sign, integer part and optional non-repeating fractional part
             let sign = if before.starts_with('-') { -1 } else { 1 };
             let before_nosign = if before.starts_with('+') || before.starts_with('-') {
                 &before[1..]
@@ -86,7 +77,6 @@ pub fn create_float(float: &str) -> Float {
                 (before_nosign, "")
             };
 
-            // validate digits
             if !int_part_str.chars().all(|c| c.is_ascii_digit())
                 || !nonrep_str.chars().all(|c| c.is_ascii_digit())
                 || !repeat.chars().all(|c| c.is_ascii_digit())
@@ -94,7 +84,6 @@ pub fn create_float(float: &str) -> Float {
                 return Float::NaN;
             }
 
-            // parse BigInt components
             let ip = BigInt::from_str(if int_part_str.is_empty() {
                 "0"
             } else {
@@ -108,30 +97,21 @@ pub fn create_float(float: &str) -> Float {
             };
             let rep = BigInt::from_str(repeat).unwrap_or_else(|_| BigInt::from(0));
 
-            // lengths
             let len_nonrep = nonrep_str.len() as u32;
             let len_rep = repeat.len() as u32;
 
-            // denom = 10^{len_nonrep} * (10^{len_rep} - 1)
             let ten = BigInt::from(10u32);
             let pow_nr = ten.pow(len_nonrep);
             let pow_r = ten.pow(len_rep);
             let denom = &pow_nr * (&pow_r - BigInt::from(1u32));
 
-            // numer fractional part = nonrep * (10^{len_rep} - 1) + rep
             let numer_frac = &nonrep * (&pow_r - BigInt::from(1u32)) + &rep;
 
-            // total numerator = ip * denom + numer_frac
             let mut total_num = &ip * &denom + numer_frac;
             if sign < 0 {
                 total_num = -total_num;
             }
 
-            // Construct BigDecimal as exact rational and mark Recurring.
-            // To avoid BigDecimal division rounding artifacts, perform long
-            // division on integer numerator/denominator and build a BigDecimal
-            // from BigInt + scale so the stored digits match the repeating
-            // cycle exactly (this matches the division path behavior).
             use std::collections::HashMap;
             let mut num_abs = total_num.clone();
             let den_abs = denom.clone().abs();
@@ -141,7 +121,6 @@ pub fn create_float(float: &str) -> Float {
             let mut rem = num_abs % &den_abs;
             let mut seen: HashMap<BigInt, usize> = HashMap::new();
             let mut digits: Vec<char> = Vec::new();
-            // raise the cap so we don't accidentally stop mid-cycle for common denominators
             let max_digits = 10000usize;
             while !rem.is_zero() && !seen.contains_key(&rem) && digits.len() < max_digits {
                 seen.insert(rem.clone(), digits.len());
@@ -161,11 +140,7 @@ pub fn create_float(float: &str) -> Float {
                     let start = *start;
                     let nonrep: String = digits[..start].iter().collect();
                     let rep: String = digits[start..].iter().collect();
-                    // choose repeat count so we end on full repeats (no truncated tail)
-                    // repeat the minimal repeating block several times so the
-                    // stored BigDecimal ends with whole repeats and the Display
-                    // path can deterministically detect the period.
-                    let min_repeats = 4usize; // keep a few repeats to be robust
+                    let min_repeats = 4usize;
                     let repeat_count = min_repeats;
                     frac_str.push_str(&nonrep);
                     for _ in 0..repeat_count {

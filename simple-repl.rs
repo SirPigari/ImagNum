@@ -236,14 +236,10 @@ fn main() {
             continue;
         }
 
-        // If expression contains specialized non-arithmetic tokens, fall back to the
-        // original left-to-right evaluator which already supports them.
-        let special_ops = ["sqrt", "round", "trunc", "int-like"];
+        let special_ops = ["sqrt", "round", "trunc", "int-like", "exit"];
         if tokens.iter().any(|t| special_ops.contains(t)) {
-            // Reuse the original evaluator logic (left-to-right) for special ops.
             let mut iter = tokens.into_iter();
 
-            // Support unary +/- when the sign is separated by whitespace.
             let first = iter.next().unwrap();
             let mut acc = if first == "-" || first == "+" {
                 match iter.next() {
@@ -311,6 +307,10 @@ fn main() {
                         }
                     }
                     continue;
+                }
+
+                if op == "exit" {
+                    std::process::exit(0);
                 }
 
                 // Fetch the right-hand side operand; allow unary +/- before the number.
