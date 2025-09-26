@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.14] - 2025-9-26
+
+- Added `Int::from_hex`
+
 ## [0.2.13] - 2025-9-25
 
 - Removed a bunch of unnecessary code.

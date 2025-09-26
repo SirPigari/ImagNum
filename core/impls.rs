@@ -308,6 +308,43 @@ impl Int {
             make_int_from_parts(value.to_string(), false, FloatKind::Finite)
         }
     }
+    pub fn from_hex(value: &str) -> Result<Self, i16> {
+        if value.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let mut s = value.trim();
+        let mut negative = false;
+        if s.starts_with('-') {
+            negative = true;
+            s = &s[1..];
+        } else if s.starts_with('+') {
+            s = &s[1..];
+        }
+        if s.starts_with("0x") || s.starts_with("0X") {
+            s = &s[2..];
+        }
+        if s.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+
+        // Validate characters and build BigInt iteratively to support arbitrary size
+        let mut acc = BigInt::from(0u32);
+        let sixteen = BigInt::from(16u32);
+        for c in s.chars() {
+            let digit = match c {
+                '0'..='9' => (c as u8 - b'0') as u32,
+                'a'..='f' => (10 + (c as u8 - b'a')) as u32,
+                'A'..='F' => (10 + (c as u8 - b'A')) as u32,
+                '_' => continue, // allow underscores for readability
+                _ => return Err(ERR_INVALID_FORMAT),
+            };
+            acc = &acc * &sixteen + BigInt::from(digit);
+        }
+        if negative {
+            acc = -acc;
+        }
+        Ok(Int::Big(acc))
+    }
     pub fn from_str(value: &str) -> Result<Self, i16> {
         if value.is_empty() {
             return Err(ERR_INVALID_FORMAT);
