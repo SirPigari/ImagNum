@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.15] - 2025-9-27
+
+- Added `to_str_radix` and `from_str_radix`.
+
 ## [0.2.14] - 2025-9-26
 
 - Added `Int::from_hex`

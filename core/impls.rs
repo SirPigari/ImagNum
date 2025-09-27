@@ -345,6 +345,51 @@ impl Int {
         }
         Ok(Int::Big(acc))
     }
+
+    pub fn from_str_radix(value: &str, radix: u32) -> Result<Self, i16> {
+        if radix < 2 || radix > 36 {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        if value.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let mut s = value.trim();
+        let mut negative = false;
+        if s.starts_with('-') {
+            negative = true;
+            s = &s[1..];
+        } else if s.starts_with('+') {
+            s = &s[1..];
+        }
+        if s.is_empty() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        let mut acc = BigInt::from(0u32);
+        let base = BigInt::from(radix);
+        for c in s.chars() {
+            if c == '_' { continue; }
+            let digit = c.to_digit(radix);
+            if digit.is_none() {
+                return Err(ERR_INVALID_FORMAT);
+            }
+            acc = &acc * &base + BigInt::from(digit.unwrap());
+        }
+        if negative { acc = -acc; }
+        Ok(Int::Big(acc))
+    }
+
+    pub fn to_str_radix(&self, radix: u32) -> Result<String, i16> {
+        if radix < 2 || radix > 36 {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        match self {
+            Int::Big(bi) => Ok(bi.to_str_radix(radix)),
+            Int::Small(si) => {
+                let bi = Int::smallint_to_bigint(si);
+                Ok(bi.to_str_radix(radix))
+            }
+        }
+    }
     pub fn from_str(value: &str) -> Result<Self, i16> {
         if value.is_empty() {
             return Err(ERR_INVALID_FORMAT);
