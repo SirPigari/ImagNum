@@ -9,12 +9,14 @@ use crate::math::{
     ERR_NEGATIVE_SQRT, ERR_UNIMPLEMENTED, add_float, ceil_float, ceil_int, cos_float,
     cos_int, div_float, exp_float, exp_int, floor_float, floor_int, is_string_odd,
     ln_float, ln_int, log10_float, mod_float, mul_float, pow_strings,
+    bigdecimal_pow_integer,
     sin_float, sin_int, sqrt_float, sqrt_int, sub_float, tan_float, tan_int,
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{Signed, ToPrimitive, Zero};
+use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
@@ -787,6 +789,60 @@ impl Float {
             });
         }
 
+        if let Float::Recurring(exp_bd) = exponent {
+            // try to approximate the recurring exponent as a rational p/q (with small q)
+            if let Some(exp_f64) = exp_bd.to_f64() {
+                if let Some((p_u64, q_u64)) = approx_rational_from_f64(exp_f64, 200) {
+                    // limit denominator
+                    if q_u64 > 0 && q_u64 <= 200 {
+                        // compute base^p first (p small)
+                        if p_u64 == 0 {
+                            return Ok(make_float_from_parts("1".to_string(), 0, false, FloatKind::Finite));
+                        }
+                        // get base as BigDecimal
+                        if let Some(base_bd) = crate::compat::float_to_bigdecimal(self) {
+                            // compute base^p via repeated multiplication
+                            let mut pow_bd = BigDecimal::from(1u32);
+                            for _ in 0..p_u64 { pow_bd = pow_bd * base_bd.clone(); }
+                            // compute q-th root using Newton with 100 decimal precision
+                            if let Some(root_bd) = bigdecimal_nth_root(pow_bd, q_u64 as u32, 100) {
+                                return Ok(Float::Big(root_bd));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // If exponent is integer-like (no fractional part), use exact BigDecimal exponentiation
+        if exponent.is_integer_like() {
+            if let Some(exp_bd) = crate::compat::float_to_bigdecimal(exponent) {
+                // convert BigDecimal to BigInt if possible
+                let (mant, exp_i32, neg) = crate::math::from_bigdecimal(&exp_bd);
+                // rebuild as integer string
+                let mut digits = mant;
+                if exp_i32 > 0 {
+                    digits.push_str(&"0".repeat(exp_i32 as usize));
+                }
+                // remove leading zeros
+                let digits = digits.trim_start_matches('0').to_string();
+                if digits.is_empty() {
+                    // exponent is zero
+                    return Ok(make_float_from_parts("1".to_string(), 0, false, FloatKind::Finite));
+                }
+                match BigInt::from_str(&digits) {
+                    Ok(mut bi) => {
+                        if neg { bi = -bi; }
+                        if let Some(base_bd) = crate::compat::float_to_bigdecimal(self) {
+                            let res_bd = bigdecimal_pow_integer(base_bd.clone(), bi);
+                            return Ok(Float::Big(res_bd));
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+
         let base_f64 = match self.to_f64() {
             Ok(v) => v,
             Err(_) => return Err(ERR_INVALID_FORMAT),
@@ -1441,3 +1497,58 @@ macro_rules! impl_small_float {
 }
 
 impl_small_float!(f32 => F32, f64 => F64);
+
+// (Removed unused helper functions to silence warnings.)
+
+// Approximate a floating point using continued fractions to get p/q with max denominator
+fn approx_rational_from_f64(x: f64, max_den: u64) -> Option<(u64, u64)> {
+    if x.is_nan() || x.is_infinite() { return None; }
+    let mut a: Vec<u64> = Vec::new();
+    let mut r = x;
+    for _ in 0..64 {
+        let ai = r.floor() as u64;
+        a.push(ai);
+        let frac = r - (ai as f64);
+        if frac.abs() < 1e-15 { break; }
+        r = 1.0 / frac;
+    }
+    // build convergents
+    let mut num0: i128 = 0; let mut den0: i128 = 1;
+    let mut num1: i128 = 1; let mut den1: i128 = 0;
+    for ai in a {
+        let num2 = ai as i128 * num1 + num0;
+        let den2 = ai as i128 * den1 + den0;
+        if den2 > (max_den as i128) { break; }
+        num0 = num1; den0 = den1;
+        num1 = num2; den1 = den2;
+    }
+    if den1 <= 0 { return None; }
+    if num1 < 0 { return None; }
+    Some((num1 as u64, den1 as u64))
+}
+
+// Compute nth root of a BigDecimal using Newton's method with `prec` decimal digits.
+fn bigdecimal_nth_root(a: BigDecimal, n: u32, prec: usize) -> Option<BigDecimal> {
+    if n == 0 { return None; }
+    if a.is_zero() { return Some(BigDecimal::from(0u32)); }
+    if a.is_negative() { return None; }
+    use bigdecimal::ToPrimitive;
+    // set initial guess from f64
+    let af = a.to_f64().unwrap_or(1.0);
+    let mut x = BigDecimal::from_f64(af.powf(1.0 / (n as f64))).unwrap_or_else(|| BigDecimal::from(1u32));
+    let scale = prec as i64;
+    for _ in 0..(prec + 20) {
+        // x_{k+1} = (1/n) * ((n-1)*x_k + a / x_k^{n-1})
+        let mut x_pow = BigDecimal::from(1u32);
+        for _ in 0..(n-1) { x_pow = &x_pow * &x; }
+        if x_pow.is_zero() { return None; }
+        let t = &a / x_pow;
+        let numer = (&BigDecimal::from((n-1) as i32) * &x) + t;
+        let next = numer / BigDecimal::from(n as i32);
+        // check convergence by difference magnitude
+        let diff = (&next - &x).abs();
+        x = next.with_scale(scale);
+        if diff.to_f64().unwrap_or(0.0) < 10f64.powi(-(prec as i32)) { break; }
+    }
+    Some(x)
+}

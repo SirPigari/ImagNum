@@ -90,14 +90,23 @@ pub fn mod_strings(a: &str, b: &str) -> IntResult<String> {
 pub fn pow_strings(base: &str, exponent: &str) -> IntResult<String> {
     let a = parse_positive_digits(base)?;
     let exp_bi = parse_positive_digits(exponent)?;
-    let exp_u64 = match exp_bi.to_u64() {
-        Some(v) => v,
-        None => return Err(ERR_NUMBER_TOO_LARGE),
-    };
-    if exp_u64 > usize::MAX as u64 {
-        return Err(ERR_NUMBER_TOO_LARGE);
+    // allow arbitrarily large non-negative integer exponents using exponentiation by squaring
+    if exp_bi.is_negative() {
+        return Err(ERR_INVALID_FORMAT);
     }
-    let result = a.pow(exp_u64.try_into().unwrap_or(0u32));
+    let mut result = BigInt::from(1u32);
+    let mut base_bi = a.clone();
+    let mut e = exp_bi.clone();
+    let one = BigInt::from(1u32);
+    while !e.is_zero() {
+        if (&e & &one) == one {
+            result *= &base_bi;
+        }
+        e = e >> 1u32;
+        if !e.is_zero() {
+            base_bi = &base_bi * &base_bi;
+        }
+    }
     Ok((result.to_string(), false))
 }
 
@@ -216,15 +225,13 @@ pub fn bigdecimal_to_fraction(bd: &BigDecimal) -> (BigInt, BigInt) {
     }
 }
 
-fn bigdecimal_pow_integer(mut base: BigDecimal, exp: BigInt) -> BigDecimal {
+pub fn bigdecimal_pow_integer(mut base: BigDecimal, exp: BigInt) -> BigDecimal {
     if exp.is_zero() {
         return BigDecimal::from(1);
     }
+    let negative_exp = exp < BigInt::from(0);
     let mut result = BigDecimal::from(1);
-    let mut e = exp.clone();
-    if e < BigInt::from(0) {
-        e = -e;
-    }
+    let mut e = if negative_exp { -exp.clone() } else { exp.clone() };
     while !e.is_zero() {
         if (&e & BigInt::from(1u32)) == BigInt::from(1u32) {
             result = result * base.clone();
@@ -233,6 +240,13 @@ fn bigdecimal_pow_integer(mut base: BigDecimal, exp: BigInt) -> BigDecimal {
         if !e.is_zero() {
             base = base.clone() * base.clone();
         }
+    }
+    if negative_exp {
+        if result == BigDecimal::from(0) {
+            // division by zero -- return zero (caller may handle)
+            return BigDecimal::from(0);
+        }
+        return BigDecimal::from(1) / result;
     }
     result
 }

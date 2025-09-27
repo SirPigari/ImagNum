@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.17] - 2025-9-27
+
+- Bugfix: fixed `pow` on `Float`
+
 ## [0.2.16] - 2025-9-27
 
 - Bugfix: Fixed comparision for `Float`
