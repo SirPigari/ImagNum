@@ -146,6 +146,32 @@ pub fn int_to_parts(i: &Int) -> (String, bool, FloatKind) {
     }
 }
 
+pub fn int_to_bigint(i: &Int) -> BigInt {
+    match i {
+        Int::Big(bi) => bi.clone(),
+        Int::Small(sv) => {
+            let s = match sv {
+                SmallInt::I8(v) => v.to_string(),
+                SmallInt::U8(v) => v.to_string(),
+                SmallInt::I16(v) => v.to_string(),
+                SmallInt::U16(v) => v.to_string(),
+                SmallInt::I32(v) => v.to_string(),
+                SmallInt::U32(v) => v.to_string(),
+                SmallInt::I64(v) => v.to_string(),
+                SmallInt::U64(v) => v.to_string(),
+                SmallInt::I128(v) => v.to_string(),
+                SmallInt::U128(v) => v.to_string(),
+                SmallInt::USize(v) => v.to_string(),
+                SmallInt::ISize(v) => v.to_string(),
+            };
+            match BigInt::from_str(&s) {
+                Ok(bi) => bi,
+                Err(_) => BigInt::from(0),
+            }
+        }
+    }
+}
+
 pub fn make_int_from_parts(digits: String, negative: bool, _kind: FloatKind) -> Int {
     match BigDecimal::from_str(&digits) {
         Ok(_) => {

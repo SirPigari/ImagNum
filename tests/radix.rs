@@ -1,5 +1,4 @@
 use imagnum::Int;
-use num_bigint::BigInt;
 
 #[test]
 fn test_radix_binary_and_octal() {

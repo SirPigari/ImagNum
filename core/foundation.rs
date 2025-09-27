@@ -3,6 +3,8 @@ use num_bigint::BigInt;
 use once_cell::sync::Lazy;
 use std::str::FromStr;
 
+use crate::impls::{IntoSmallInt, IntoSmallFloat};
+
 pub static NAN: Lazy<Float> = Lazy::new(|| Float::NaN);
 pub static INFINITY: Lazy<Float> = Lazy::new(|| Float::Infinity);
 pub static NEG_INFINITY: Lazy<Float> = Lazy::new(|| Float::NegInfinity);
@@ -23,7 +25,7 @@ pub enum FloatKind {
     Complex,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
 pub enum SmallInt {
     I8(i8),
     U8(u8),
@@ -67,10 +69,18 @@ impl Int {
     pub fn new() -> Self {
         Self::Big(BigInt::from(0))
     }
+
+    pub fn new_small<T: IntoSmallInt>(value: T) -> Self {
+        value.into_small_int()
+    }
 }
 
 impl Float {
     pub fn new() -> Self {
         Self::Big(BigDecimal::from_str("0").unwrap())
+    }
+
+    pub fn new_small<T: IntoSmallFloat>(value: T) -> Self {
+        value.into_small_float()
     }
 }

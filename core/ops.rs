@@ -203,61 +203,26 @@ impl RemAssign for Int {
     }
 }
 
-fn normalize(mantissa: &str, exponent: i32) -> (String, i32) {
-    let mut digits = mantissa.trim_start_matches('0').to_string();
-    if digits.is_empty() {
-        return ("0".to_string(), 0);
-    }
-
-    let mut exp = exponent;
-
-    while digits.ends_with('0') {
-        digits.pop();
-        exp += 1;
-    }
-
-    if digits.is_empty() {
-        return ("0".to_string(), 0);
-    }
-
-    (digits, exp)
-}
-
 impl PartialOrd for Int {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let (self_digits, self_neg, _k) = int_to_parts(self);
-        let (other_digits, other_neg, _k2) = int_to_parts(other);
-        if self_neg && !other_neg {
-            return Some(Ordering::Less);
-        }
-        if !self_neg && other_neg {
-            return Some(Ordering::Greater);
-        }
-        let self_digits = self_digits.trim_start_matches('0');
-        let other_digits = other_digits.trim_start_matches('0');
+        use crate::compat::int_to_bigint;
 
-        let len_cmp = self_digits.len().cmp(&other_digits.len());
+        match (self, other) {
+            (crate::foundation::Int::Big(a), crate::foundation::Int::Big(b)) => {
+                return Some(a.cmp(b));
+            }
 
-        if len_cmp != Ordering::Equal {
-            return if self_neg {
-                Some(len_cmp.reverse())
-            } else {
-                Some(len_cmp)
-            };
-        }
+            (crate::foundation::Int::Small(a), crate::foundation::Int::Small(b)) => {
+                return Some(a.cmp(b));
+            }
 
-        for (a, b) in self_digits.chars().zip(other_digits.chars()) {
-            if a != b {
-                let cmp = a.cmp(&b);
-                return if self_neg {
-                    Some(cmp.reverse())
-                } else {
-                    Some(cmp)
-                };
+            (crate::foundation::Int::Small(_), crate::foundation::Int::Big(_))
+            | (crate::foundation::Int::Big(_), crate::foundation::Int::Small(_)) => {
+                let a_big = int_to_bigint(self);
+                let b_big = int_to_bigint(other);
+                return Some(a_big.cmp(&b_big));
             }
         }
-
-        Some(Ordering::Equal)
     }
 }
 
@@ -471,41 +436,48 @@ impl RemAssign for Float {
 impl PartialOrd for Float {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use std::cmp::Ordering;
-        let (self_man, self_exp, self_neg, _k1) = float_to_parts(self);
-        let (other_man, other_exp, other_neg, _k2) = float_to_parts(other);
-        if self_neg && !other_neg {
-            return Some(Ordering::Less);
-        }
-        if !self_neg && other_neg {
-            return Some(Ordering::Greater);
-        }
-        let sign = if self_neg { -1 } else { 1 };
-        let (mut self_man, self_exp) = normalize(&self_man, self_exp);
-        let (mut other_man, other_exp) = normalize(&other_man, other_exp);
+        use crate::compat::float_to_bigdecimal;
 
-        if self_exp > other_exp {
-            let diff = (self_exp - other_exp) as usize;
-            other_man = format!("{}{}", "0".repeat(diff), other_man);
-        } else if other_exp > self_exp {
-            let diff = (other_exp - self_exp) as usize;
-            self_man = format!("{}{}", "0".repeat(diff), self_man);
-        }
+        match (self, other) {
+            (Float::Big(a_bd), Float::Big(b_bd)) => {
+                return Some(a_bd.normalized().cmp(&b_bd.normalized()));
+            }
 
-        let max_len = self_man.len().max(other_man.len());
-        if self_man.len() < max_len {
-            self_man = format!("{}{}", self_man, "0".repeat(max_len - self_man.len()));
-        }
-        if other_man.len() < max_len {
-            other_man = format!("{}{}", other_man, "0".repeat(max_len - other_man.len()));
-        }
+            (Float::Small(a_sf), Float::Small(b_sf)) => {
+                let a_v = match a_sf {
+                    crate::foundation::SmallFloat::F32(v) => *v as f64,
+                    crate::foundation::SmallFloat::F64(v) => *v,
+                };
+                let b_v = match b_sf {
+                    crate::foundation::SmallFloat::F32(v) => *v as f64,
+                    crate::foundation::SmallFloat::F64(v) => *v,
+                };
+                return a_v.partial_cmp(&b_v);
+            }
 
-        for (a, b) in self_man.chars().zip(other_man.chars()) {
-            if a != b {
-                let cmp = a.cmp(&b);
-                return Some(if sign == 1 { cmp } else { cmp.reverse() });
+            (Float::Small(_), Float::Big(_)) | (Float::Big(_), Float::Small(_)) => {
+                if let (Some(a_bd), Some(b_bd)) = (float_to_bigdecimal(self), float_to_bigdecimal(other)) {
+                    return Some(a_bd.normalized().cmp(&b_bd.normalized()));
+                }
+                return None;
+            }
+
+            (Float::NaN, Float::NaN) => return Some(Ordering::Equal),
+            (Float::NaN, _) | (_, Float::NaN) => return None,
+            (Float::Infinity, Float::Infinity) => return Some(Ordering::Equal),
+            (Float::NegInfinity, Float::NegInfinity) => return Some(Ordering::Equal),
+            (Float::Infinity, _) => return Some(Ordering::Greater),
+            (_, Float::Infinity) => return Some(Ordering::Less),
+            (Float::NegInfinity, _) => return Some(Ordering::Less),
+            (_, Float::NegInfinity) => return Some(Ordering::Greater),
+
+            _ => {
+                if let (Some(a_bd), Some(b_bd)) = (float_to_bigdecimal(self), float_to_bigdecimal(other)) {
+                    return Some(a_bd.normalized().cmp(&b_bd.normalized()));
+                }
+                return None;
             }
         }
-        Some(Ordering::Equal)
     }
 }
 

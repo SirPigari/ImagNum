@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.16] - 2025-9-27
+
+- Bugfix: Fixed comparision for `Float`
+- Added `new_small` for `Int` and `Float`
+- Cake day: Happy cake day Filip!
+
 ## [0.2.15] - 2025-9-27
 
 - Added `to_str_radix` and `from_str_radix`.

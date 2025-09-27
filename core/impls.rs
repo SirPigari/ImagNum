@@ -2,7 +2,7 @@ use crate::compat::{
     float_is_zero, float_kind, float_to_parts, int_is_infinite, int_is_nan, int_to_parts,
     int_to_string, make_float_from_parts, make_int_from_parts,
 };
-use crate::foundation::{Float, FloatKind, Int, SmallInt};
+use crate::foundation::{Float, FloatKind, Int, SmallInt, SmallFloat};
 use crate::functions::{create_float, create_int};
 use crate::math::{
     ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
@@ -1392,3 +1392,52 @@ impl PartialEq<Float> for Int {
         other.eq(self)
     }
 }
+
+pub trait IntoSmallInt {
+    fn into_small_int(self) -> Int;
+}
+
+macro_rules! impl_small_int {
+    ($($t:ty => $variant:ident),*) => {
+        $(
+            impl IntoSmallInt for $t {
+                fn into_small_int(self) -> Int {
+                    Int::Small(SmallInt::$variant(self))
+                }
+            }
+        )*
+    };
+}
+
+impl_small_int!(
+    i8 => I8,
+    u8 => U8,
+    i16 => I16,
+    u16 => U16,
+    i32 => I32,
+    u32 => U32,
+    i64 => I64,
+    u64 => U64,
+    i128 => I128,
+    u128 => U128,
+    isize => ISize,
+    usize => USize
+);
+
+pub trait IntoSmallFloat {
+    fn into_small_float(self) -> Float;
+}
+
+macro_rules! impl_small_float {
+    ($($t:ty => $variant:ident),*) => {
+        $(
+            impl IntoSmallFloat for $t {
+                fn into_small_float(self) -> Float {
+                    Float::Small(SmallFloat::$variant(self))
+                }
+            }
+        )*
+    };
+}
+
+impl_small_float!(f32 => F32, f64 => F64);
