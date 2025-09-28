@@ -790,21 +790,28 @@ impl Float {
         }
 
         if let Float::Recurring(exp_bd) = exponent {
-            // try to approximate the recurring exponent as a rational p/q (with small q)
+            let (num, den) = crate::math::bigdecimal_to_fraction(&exp_bd);
+            if den != num_bigint::BigInt::from(1u32) {
+                if let Some(den_u64) = den.to_u64() {
+                    if den_u64 > 0 && den_u64 <= 200 {
+                        if let Some(base_bd) = crate::compat::float_to_bigdecimal(self) {
+                            if let Ok((res_bd, _exact)) = crate::math::pow_bigdecimal_rational(&base_bd, &num, &den, 137) {
+                                return Ok(Float::Big(res_bd));
+                            }
+                        }
+                    }
+                }
+            }
+
             if let Some(exp_f64) = exp_bd.to_f64() {
                 if let Some((p_u64, q_u64)) = approx_rational_from_f64(exp_f64, 200) {
-                    // limit denominator
                     if q_u64 > 0 && q_u64 <= 200 {
-                        // compute base^p first (p small)
                         if p_u64 == 0 {
                             return Ok(make_float_from_parts("1".to_string(), 0, false, FloatKind::Finite));
                         }
-                        // get base as BigDecimal
                         if let Some(base_bd) = crate::compat::float_to_bigdecimal(self) {
-                            // compute base^p via repeated multiplication
                             let mut pow_bd = BigDecimal::from(1u32);
                             for _ in 0..p_u64 { pow_bd = pow_bd * base_bd.clone(); }
-                            // compute q-th root using Newton with 100 decimal precision
                             if let Some(root_bd) = bigdecimal_nth_root(pow_bd, q_u64 as u32, 100) {
                                 return Ok(Float::Big(root_bd));
                             }
@@ -814,20 +821,15 @@ impl Float {
             }
         }
 
-        // If exponent is integer-like (no fractional part), use exact BigDecimal exponentiation
         if exponent.is_integer_like() {
             if let Some(exp_bd) = crate::compat::float_to_bigdecimal(exponent) {
-                // convert BigDecimal to BigInt if possible
                 let (mant, exp_i32, neg) = crate::math::from_bigdecimal(&exp_bd);
-                // rebuild as integer string
                 let mut digits = mant;
                 if exp_i32 > 0 {
                     digits.push_str(&"0".repeat(exp_i32 as usize));
                 }
-                // remove leading zeros
                 let digits = digits.trim_start_matches('0').to_string();
                 if digits.is_empty() {
-                    // exponent is zero
                     return Ok(make_float_from_parts("1".to_string(), 0, false, FloatKind::Finite));
                 }
                 match BigInt::from_str(&digits) {
@@ -839,6 +841,21 @@ impl Float {
                         }
                     }
                     Err(_) => {}
+                }
+            }
+        }
+
+        if let Some(exp_bd) = crate::compat::float_to_bigdecimal(exponent) {
+            let (num, den) = crate::math::bigdecimal_to_fraction(&exp_bd);
+            if den != num_bigint::BigInt::from(1u32) {
+                if let Some(den_u64) = den.to_u64() {
+                    if den_u64 > 0 && den_u64 <= 200 {
+                        if let Some(base_bd) = crate::compat::float_to_bigdecimal(self) {
+                            if let Ok((res_bd, _exact)) = crate::math::pow_bigdecimal_rational(&base_bd, &num, &den, 137) {
+                                return Ok(Float::Big(res_bd));
+                            }
+                        }
+                    }
                 }
             }
         }

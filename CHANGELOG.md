@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.18] - 2025-9-28
+
+- Bugfix: fixed division return on `Float` when dividing by the same number but different representation (e.g. `137 / (7/2)` now equals `137 / 3.5`).
+
 ## [0.2.17] - 2025-9-27
 
 - Bugfix: fixed `pow` on `Float`

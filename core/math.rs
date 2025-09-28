@@ -412,6 +412,37 @@ pub fn div_float(
     if b.is_zero() {
         return Err(ERR_DIV_BY_ZERO);
     }
+    let mant1_is_digits = mant1.chars().all(|c| c.is_ascii_digit());
+    let mant2_is_digits = mant2.chars().all(|c| c.is_ascii_digit());
+    if mant1_is_digits && mant2_is_digits && exp1 >= 0 && exp2 >= 0 {
+        let bi_a = BigInt::parse_bytes(mant1.as_bytes(), 10).unwrap_or_else(|| BigInt::from(0u32)) * BigInt::from(10u32).pow(exp1 as u32);
+        let bi_b = BigInt::parse_bytes(mant2.as_bytes(), 10).unwrap_or_else(|| BigInt::from(1u32)) * BigInt::from(10u32).pow(exp2 as u32);
+        if !bi_b.is_zero() {
+            let (num, den) = (bi_a, bi_b);
+            let mut den_abs = den.clone().abs();
+            let ten = BigInt::from(10u32);
+            let mut scale = 0u32;
+            while (&den_abs % BigInt::from(2u32)) == BigInt::from(0u32) {
+                den_abs = &den_abs / BigInt::from(2u32);
+                scale += 1;
+            }
+            while (&den_abs % BigInt::from(5u32)) == BigInt::from(0u32) {
+                den_abs = &den_abs / BigInt::from(5u32);
+                scale += 1;
+            }
+            let mut scale = scale as i64;
+            let denom_for_decimal = den.clone();
+            while (&denom_for_decimal.clone() % ten.pow(scale as u32)) != BigInt::from(0u32) {
+                scale += 1;
+            }
+            let scale_usize = scale as usize;
+            let ten_pow = BigInt::from(10u32).pow(scale_usize as u32);
+            let scaled_num = num * &ten_pow;
+            let bd = BigDecimal::new(scaled_num / denom_for_decimal, scale as i64);
+            return Ok(from_bigdecimal(&bd));
+        }
+    }
+
     let scale = ((mant1.len() + mant2.len()) as i64 + 20).max(50);
     let quotient = (a / b).with_scale(scale);
     Ok(from_bigdecimal(&quotient))
