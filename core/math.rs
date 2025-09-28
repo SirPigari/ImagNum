@@ -90,7 +90,6 @@ pub fn mod_strings(a: &str, b: &str) -> IntResult<String> {
 pub fn pow_strings(base: &str, exponent: &str) -> IntResult<String> {
     let a = parse_positive_digits(base)?;
     let exp_bi = parse_positive_digits(exponent)?;
-    // allow arbitrarily large non-negative integer exponents using exponentiation by squaring
     if exp_bi.is_negative() {
         return Err(ERR_INVALID_FORMAT);
     }
@@ -243,7 +242,6 @@ pub fn bigdecimal_pow_integer(mut base: BigDecimal, exp: BigInt) -> BigDecimal {
     }
     if negative_exp {
         if result == BigDecimal::from(0) {
-            // division by zero -- return zero (caller may handle)
             return BigDecimal::from(0);
         }
         return BigDecimal::from(1) / result;
@@ -267,10 +265,17 @@ fn bigdecimal_nth_root(
     let guard = 10usize;
     let scale = (precision + guard) as i64;
 
-    let mut x = a.with_scale(scale) / BigDecimal::from(n as i64);
-    if x == BigDecimal::zero() {
-        x = BigDecimal::from(1);
-    }
+    let mut x = if let Some(a_f64) = a.to_f64() {
+        if a_f64 <= 0.0 {
+            BigDecimal::from(1)
+        } else {
+            let approx = a_f64.powf(1.0 / (n as f64));
+            BigDecimal::from_f64(approx).unwrap_or_else(|| BigDecimal::from(1))
+        }
+    } else {
+        BigDecimal::from(1)
+    };
+    x = x.with_scale(scale);
 
     for _ in 0..200 {
         let mut x_pow = BigDecimal::from(1);
@@ -346,14 +351,12 @@ pub fn pow_bigdecimal_rational(
     if den_u64 == 0 {
         return Err(ERR_INVALID_FORMAT);
     }
-    let (root, exact) = bigdecimal_nth_root(&base_pow, den_u64, precision)?;
+    let (root, exact) = bigdecimal_nth_root(&base_pow.normalized(), den_u64, precision)?;
+    let root_norm = root.normalized();
     if neg_exp {
-        Ok((
-            (BigDecimal::from(1) / root).with_scale(precision as i64),
-            exact,
-        ))
+        Ok(((BigDecimal::from(1) / root_norm), exact))
     } else {
-        Ok((root.with_scale(precision as i64), exact))
+        Ok((root_norm, exact))
     }
 }
 
