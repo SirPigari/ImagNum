@@ -22,6 +22,50 @@ use std::fmt::{Binary, LowerHex, Octal};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
+/// Normalizes a recurring decimal to a simpler form if possible
+/// For example, 0.(9) becomes 1, 0.4(9) becomes 0.5
+fn normalize_recurring_decimal(float: Float) -> Float {
+    if let Float::Recurring(ref bd) = float {
+        let n = bd.normalized();
+        
+        // Check if it's equivalent to an integer
+        let int_candidate = n.with_scale(0);
+        if n == int_candidate {
+            return Float::Big(int_candidate);
+        }
+        
+        // Check for common recurring patterns that equal terminating decimals
+        let s_norm = n.normalized().to_string();
+        if s_norm.contains('.') {
+            let parts: Vec<&str> = s_norm.split('.').collect();
+            if parts.len() == 2 {
+                let frac = parts[1];
+                // Check for patterns like .999... -> +1, .499... -> +0.5, etc.
+                if frac.chars().all(|c| c == '9') && !frac.is_empty() {
+                    // This is 0.999... pattern, add 1 to integer part
+                    let int_part: i64 = parts[0].parse().unwrap_or(0);
+                    return Float::Big(BigDecimal::from(int_part + 1));
+                }
+                // Check for patterns like 0.4999... = 0.5
+                if frac.len() > 1 && frac.chars().skip(1).all(|c| c == '9') {
+                    let first_digit = frac.chars().next().unwrap_or('0');
+                    if let Some(digit_val) = first_digit.to_digit(10) {
+                        let new_digit = digit_val + 1;
+                        if new_digit < 10 {
+                            let new_frac = format!("{}", new_digit);
+                            let new_val = format!("{}.{}", parts[0], new_frac);
+                            if let Ok(new_bd) = BigDecimal::from_str(&new_val) {
+                                return Float::Big(new_bd);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    float
+}
+
 impl Int {
     fn smallint_to_bigint(si: &SmallInt) -> BigInt {
         match si {
@@ -612,12 +656,19 @@ impl Float {
         } else {
             FloatKind::Finite
         };
-        Ok(make_float_from_parts(
+        let mut result = make_float_from_parts(
             mantissa,
             exponent,
             negative,
             result_kind,
-        ))
+        );
+        
+        // Normalize recurring decimals that equal integers or terminating decimals
+        if result_kind == FloatKind::Recurring {
+            result = normalize_recurring_decimal(result);
+        }
+        
+        Ok(result)
     }
     pub fn _div(&self, other: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {

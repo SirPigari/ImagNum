@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.20] - 2025-10-7
+
+- Bugfix: `1/3*3` is know equal to `1`
+- Updated test for reccurring
+
 ## [0.2.19] - 2025-9-28
 
 - Bugfix: fixed crucial bug in `pow` on `Float` where it would yield wrong result.

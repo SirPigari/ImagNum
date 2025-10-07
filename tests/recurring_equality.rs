@@ -1,4 +1,5 @@
 use imagnum::{create_float, create_int};
+use std::ops::{Div, Mul};
 
 #[test]
 fn recurring_nine_equals_one() {
@@ -34,4 +35,14 @@ fn recurring_49_equals_05() {
     let b = create_float("0.5");
     assert_eq!(a, b, "0.4(9) should compare equal to 0.5");
     assert_eq!(a.to_str(), "0.5", "to_str should print normalized 0.5");
+}
+
+#[test]
+fn one_divided_by_three() {
+    let a = create_float("1.0").div(&create_float("3.0")).expect("Division by 3 failed");
+    let b = create_float("0.(3)");
+    assert_eq!(a, b, "1 / 3 should equal 0.(3)");
+
+    let c = a.mul(&create_float("3.0")).expect("Multiplication by 3 failed");
+    assert_eq!(c, create_float("1.0"), "0.(3) * 3 should equal 1");
 }

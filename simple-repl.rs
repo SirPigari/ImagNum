@@ -1,6 +1,5 @@
 use imagnum::{Float, Int, create_float, create_int, errors::get_error_message};
 use std::io::{self, Write};
-// std::cmp::Ordering no longer needed
 
 #[derive(Debug, Clone)]
 enum Number {
@@ -150,9 +149,7 @@ fn main() {
                         continue;
                     }
                 }
-                // single-char operators/parentheses
                 if "+-*/%^()<>".contains(c) {
-                    // treat + or - as part of number if it's a sign at a value position
                     if (c == '+' || c == '-') && !last_was_value && i + 1 < n && (chars[i+1].is_ascii_digit() || chars[i+1] == '.') {
                         // parse signed number below
                     } else {
@@ -162,12 +159,10 @@ fn main() {
                         continue;
                     }
                 }
-                // number token (digits, optional dot, optional recurring parentheses)
                 if chars[i].is_ascii_digit() || chars[i] == '.' || ((chars[i] == '+' || chars[i] == '-') && i + 1 < n && (chars[i+1].is_ascii_digit() || chars[i+1] == '.')) {
                     let start = i;
                     if chars[i] == '+' || chars[i] == '-' { i += 1; }
                     while i < n && (chars[i].is_ascii_digit() || chars[i] == '.') { i += 1; }
-                    // if next is '(' collect recurring group
                     if i < n && chars[i] == '(' {
                         let mut j = i + 1;
                         while j < n && chars[j] != ')' { j += 1; }
@@ -180,7 +175,6 @@ fn main() {
                     last_was_value = true;
                     continue;
                 }
-                // identifier token (letters)
                 if chars[i].is_alphabetic() {
                     let start = i;
                     while i < n && (chars[i].is_alphanumeric() || chars[i] == '-') { i += 1; }
@@ -189,7 +183,6 @@ fn main() {
                     last_was_value = true;
                     continue;
                 }
-                // fallback single char
                 toks.push(c.to_string());
                 i += 1;
                 last_was_value = false;
@@ -198,8 +191,6 @@ fn main() {
         }
 
         let mut tokens_owned = tokenize(line.trim());
-        // fallback: if tokenizer returned a single token that still contains operator chars,
-        // attempt a conservative split so expressions like "1/3" become ["1","/","3"].
         if tokens_owned.len() == 1 {
             let s = &tokens_owned[0];
             if s.contains('/') || s.contains('*') || s.contains('+') || s.contains('-') || s.contains('%') || s.contains('^') {
@@ -222,12 +213,10 @@ fn main() {
         let mut tokens: Vec<&str> = tokens_owned.iter().map(|s| s.as_str()).collect();
         if tokens.is_empty() { continue; }
 
-        // Allow a trailing '=' token to request result printing (e.g. "3 + 4 =").
         if tokens.len() > 1 && tokens.last() == Some(&"=") {
             tokens.pop();
         };
 
-        // If input is a single number (with optional trailing '='), just print it.
         if tokens.len() == 1 {
             match parse_token(tokens[0]) {
                 Ok(n) => println!("{}= {}", " ".repeat(4), n.display()),
@@ -313,7 +302,6 @@ fn main() {
                     std::process::exit(0);
                 }
 
-                // Fetch the right-hand side operand; allow unary +/- before the number.
                 let rhs = match iter.next() {
                     Some(t) => {
                         if t == "-" || t == "+" {
@@ -351,12 +339,9 @@ fn main() {
             continue;
         }
 
-        // Use shunting-yard to handle operator precedence for arithmetic and comparison expressions.
-        // Supported operators: + - * / % ^  == != > < >= <=
         let mut output_queue: Vec<&str> = Vec::new();
         let mut op_stack: Vec<&str> = Vec::new();
 
-        // Helper for operator precedence and associativity
         let precedence = |op: &str| match op {
             "==" | "!=" | ">" | "<" | ">=" | "<=" => 1,
             "+" | "-" => 2,
@@ -366,13 +351,11 @@ fn main() {
         };
         let is_right_assoc = |op: &str| op == "^";
 
-        // Preprocess to combine unary +/- (when sign appears where an operand is expected)
         let mut preprocessed: Vec<String> = Vec::new();
         let mut i = 0usize;
         while i < tokens.len() {
             let t = tokens[i];
             if (t == "+" || t == "-") && (i == 0 || ["+","-","*","/","%","^"] .contains(&tokens[i-1])) {
-                // unary sign, combine with next token
                 if i + 1 < tokens.len() {
                     preprocessed.push(format!("{}{}", t, tokens[i+1]));
                     i += 2;
@@ -387,7 +370,6 @@ fn main() {
             }
         }
 
-        // Shunting-yard using preprocessed tokens
         for tok in preprocessed.iter().map(|s| s.as_str()) {
             if ["+","-","*","/","%","^","==","!=",">","<",">=","<="].contains(&tok) {
                 while let Some(&top) = op_stack.last() {
@@ -409,7 +391,6 @@ fn main() {
                     output_queue.push(top);
                 }
             } else {
-                // assume number
                 output_queue.push(tok);
             }
         }
@@ -418,7 +399,6 @@ fn main() {
             output_queue.push(op);
         }
 
-        // Evaluate RPN
         let mut eval_stack: Vec<Value> = Vec::new();
         let mut error_occurred = false;
         for tok in output_queue {
@@ -433,7 +413,6 @@ fn main() {
                 let lhs = lhs.unwrap();
                 let rhs = rhs.unwrap();
 
-                // Comparisons require numeric operands.
                 if ["==","!=",">","<",">=","<="].contains(&tok) {
                     let lnum = match lhs {
                         Value::Num(n) => n,
@@ -444,7 +423,6 @@ fn main() {
                         Value::Bool(_) => { println!("right operand to comparison is boolean"); error_occurred = true; break; }
                     };
 
-                    // Promote both to Float for comparison
                     let lfp = lnum.promote();
                     let rfp = rnum.promote();
                     let bool_res = match (lfp, rfp) {
@@ -463,7 +441,6 @@ fn main() {
                     continue;
                 }
 
-                // Arithmetic ops
                 let lnum = match lhs { Value::Num(n) => n, Value::Bool(_) => { println!("left operand to arithmetic is boolean"); error_occurred = true; break; } };
                 let rnum = match rhs { Value::Num(n) => n, Value::Bool(_) => { println!("right operand to arithmetic is boolean"); error_occurred = true; break; } };
 
