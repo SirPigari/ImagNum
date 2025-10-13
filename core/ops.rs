@@ -1,8 +1,10 @@
 use crate::compat::{
-    float_kind, float_to_parts, int_is_infinite, int_is_nan, int_to_parts, int_to_string,
+    float_is_negative, float_is_neg_one, float_is_one, float_is_zero, float_kind,
+    float_to_parts, int_is_infinite, int_is_nan, int_to_parts, int_to_string,
     make_float_from_parts,
 };
 use crate::foundation::{Float, FloatKind, Int};
+use bigdecimal::BigDecimal;
 use std::cmp::{Ordering, PartialOrd};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::{
@@ -493,6 +495,44 @@ impl Display for Float {
         } else if k == FloatKind::NegInfinity {
             write!(f, "-Infinity")?;
 
+            return Ok(());
+        }
+
+        if let Float::Complex(ref real, ref imag) = *self {
+            if float_is_zero(imag) {
+                return real.fmt(f);
+            }
+            
+            if float_is_zero(real) {
+                if float_is_one(imag) {
+                    return write!(f, "i");
+                } else if float_is_neg_one(imag) {
+                    return write!(f, "-i");
+                } else {
+                    write!(f, "{}i", imag)?;
+                    return Ok(());
+                }
+            }
+            
+            write!(f, "{}", real)?;
+            
+            let imag_neg = float_is_negative(imag);
+            if imag_neg {
+                write!(f, " - ")?;
+                let abs_imag = Float::Big(BigDecimal::from(0))._sub(imag).unwrap_or_else(|_| *imag.clone());
+                if float_is_one(&abs_imag) {
+                    write!(f, "i")?;
+                } else {
+                    write!(f, "{}i", abs_imag)?;
+                }
+            } else {
+                write!(f, " + ")?;
+                if float_is_one(imag) {
+                    write!(f, "i")?;
+                } else {
+                    write!(f, "{}i", imag)?;
+                }
+            }
             return Ok(());
         }
 

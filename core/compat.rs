@@ -105,6 +105,32 @@ pub fn float_is_zero(f: &Float) -> bool {
     }
 }
 
+pub fn float_is_one(f: &Float) -> bool {
+    match f {
+        Float::Big(bd) | Float::Irrational(bd) | Float::Recurring(bd) => {
+            bd.to_string() == "1" || bd.to_string() == "1.0"
+        }
+        Float::Small(s) => match s {
+            SmallFloat::F32(v) => *v == 1.0,
+            SmallFloat::F64(v) => *v == 1.0,
+        },
+        _ => false,
+    }
+}
+
+pub fn float_is_neg_one(f: &Float) -> bool {
+    match f {
+        Float::Big(bd) | Float::Irrational(bd) | Float::Recurring(bd) => {
+            bd.to_string() == "-1" || bd.to_string() == "-1.0"
+        }
+        Float::Small(s) => match s {
+            SmallFloat::F32(v) => *v == -1.0,
+            SmallFloat::F64(v) => *v == -1.0,
+        },
+        _ => false,
+    }
+}
+
 pub fn float_to_bigdecimal(f: &Float) -> Option<BigDecimal> {
     match f {
         Float::Big(bd) | Float::Irrational(bd) | Float::Recurring(bd) => Some(bd.clone()),

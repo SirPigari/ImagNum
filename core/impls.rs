@@ -510,6 +510,20 @@ impl Float {
             return Err(ERR_INVALID_FORMAT);
         }
 
+        // (a + bi) + (c + di) = (a+c) + (b+d)i
+        match (self, other) {
+            (Float::Complex(r1, i1), Float::Complex(r2, i2)) => {
+                let real = r1._add(r2)?;
+                let imag = i1._add(i2)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            (Float::Complex(r, i), other_val) | (other_val, Float::Complex(r, i)) => {
+                let real = r._add(other_val)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(*i.clone())));
+            }
+            _ => {}
+        }
+
         let k1 = float_kind(self);
         let k2 = float_kind(other);
         if k1 == FloatKind::Finite && k2 == FloatKind::Finite {
@@ -556,6 +570,25 @@ impl Float {
     pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
+        }
+
+        // (a + bi) - (c + di) = (a-c) + (b-d)i
+        match (self, other) {
+            (Float::Complex(r1, i1), Float::Complex(r2, i2)) => {
+                let real = r1._sub(r2)?;
+                let imag = i1._sub(i2)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            (Float::Complex(r, i), other_val) => {
+                let real = r._sub(other_val)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(*i.clone())));
+            }
+            (other_val, Float::Complex(r, i)) => {
+                let real = other_val._sub(r)?;
+                let neg_imag = Float::Big(BigDecimal::from(0))._sub(i)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(neg_imag)));
+            }
+            _ => {}
         }
 
         let k1 = float_kind(self);
@@ -616,6 +649,25 @@ impl Float {
             return Err(ERR_INVALID_FORMAT);
         }
 
+        // (a + bi)(c + di) = (ac - bd) + (ad + bc)i
+        match (self, other) {
+            (Float::Complex(a, b), Float::Complex(c, d)) => {
+                let ac = a._mul(c)?;
+                let bd = b._mul(d)?;
+                let ad = a._mul(d)?;
+                let bc = b._mul(c)?;
+                let real = ac._sub(&bd)?;
+                let imag = ad._add(&bc)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            (Float::Complex(r, i), other_val) | (other_val, Float::Complex(r, i)) => {
+                let real = r._mul(other_val)?;
+                let imag = i._mul(other_val)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            _ => {}
+        }
+
         let k1 = float_kind(self);
         let k2 = float_kind(other);
         if k1 == FloatKind::Finite && k2 == FloatKind::Finite {
@@ -663,7 +715,6 @@ impl Float {
             result_kind,
         );
         
-        // Normalize recurring decimals that equal integers or terminating decimals
         if result_kind == FloatKind::Recurring {
             result = normalize_recurring_decimal(result);
         }
@@ -676,6 +727,52 @@ impl Float {
         }
         if float_is_zero(other) {
             return Err(ERR_DIV_BY_ZERO);
+        }
+
+        // (a + bi)/(c + di) = [(ac + bd) + (bc - ad)i] / (c² + d²)
+        match (self, other) {
+            (Float::Complex(a, b), Float::Complex(c, d)) => {
+                let ac = a._mul(c)?;
+                let bd = b._mul(d)?;
+                let bc = b._mul(c)?;
+                let ad = a._mul(d)?;
+                let c_sq = c._mul(c)?;
+                let d_sq = d._mul(d)?;
+                let denom = c_sq._add(&d_sq)?;
+                
+                if float_is_zero(&denom) {
+                    return Err(ERR_DIV_BY_ZERO);
+                }
+                
+                let real_num = ac._add(&bd)?;
+                let imag_num = bc._sub(&ad)?;
+                let real = real_num._div(&denom)?;
+                let imag = imag_num._div(&denom)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            (Float::Complex(r, i), other_val) => {
+                let real = r._div(other_val)?;
+                let imag = i._div(other_val)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            (other_val, Float::Complex(c, d)) => {
+                // a / (c + di) = [ac - di] / (c² + d²) = [ac/(c²+d²)] + [-ad/(c²+d²)]i
+                let c_sq = c._mul(c)?;
+                let d_sq = d._mul(d)?;
+                let denom = c_sq._add(&d_sq)?;
+                
+                if float_is_zero(&denom) {
+                    return Err(ERR_DIV_BY_ZERO);
+                }
+                
+                let ac = other_val._mul(c)?;
+                let ad = other_val._mul(d)?;
+                let real = ac._div(&denom)?;
+                let neg_ad = Float::Big(BigDecimal::from(0))._sub(&ad)?;
+                let imag = neg_ad._div(&denom)?;
+                return Ok(Float::Complex(Box::new(real), Box::new(imag)));
+            }
+            _ => {}
         }
 
         if float_kind(self) == FloatKind::Infinity && float_kind(other) == FloatKind::Infinity {

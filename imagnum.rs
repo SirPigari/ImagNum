@@ -32,7 +32,7 @@ pub mod compat;
 // pub mod complex;
 
 pub use foundation::{Float, Int};
-pub use functions::{create_float, create_int};
+pub use functions::{create_complex, create_float, create_imaginary, create_int};
 pub mod macros {
     pub use super::{float, int};
 }

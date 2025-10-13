@@ -182,6 +182,12 @@ pub fn create_imaginary() -> Float {
     Float::Complex(Box::new(Float::Big(zero)), Box::new(Float::Big(one)))
 }
 
+pub fn create_complex(real: &str, imag: &str) -> Float {
+    let real_part = create_float(real);
+    let imag_part = create_float(imag);
+    Float::Complex(Box::new(real_part), Box::new(imag_part))
+}
+
 pub fn get_error_message(code: i16) -> &'static str {
     match code {
         ERR_INVALID_FORMAT => "Invalid format",

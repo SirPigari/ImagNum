@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.21] - 2025-10-13
+
+- Added full support for complex number arithmetic
+  - Added `create_complex(real, imag)` function to create complex numbers from string representations
+  - Added `create_imaginary()` function to create the imaginary unit i (0+1i)
+  - Implemented complex addition: (a+bi)+(c+di) = (a+c)+(b+d)i
+  - Implemented complex subtraction: (a+bi)-(c+di) = (a-c)+(b-d)i
+  - Implemented complex multiplication: (a+bi)(c+di) = (ac-bd)+(ad+bc)i
+  - Implemented complex division: (a+bi)/(c+di) = [(ac+bd)+(bc-ad)i]/(c²+d²)
+  - Added mixed operations support (complex with real numbers)
+- Display: Complex numbers now display with pretty formatting:
+  - Standard form: `3.0 + 4.0i`
+  - Negative imaginary: `3.0 - 4.0i`
+  - Pure imaginary: `5.0i` (when real part is zero)
+  - Pure real: `7.0` (when imaginary part is zero)
+  - Unit imaginary: `i` (for 0+1i)
+  - Negative unit: `-i` (for 0-1i)
+- Added test suite `tests/complex.rs`
+- Added helper functions `float_is_one`, `float_is_neg_one`, and `float_is_negative` to `core/compat.rs`
+
 ## [0.2.20] - 2025-10-7
 
 - Bugfix: `1/3*3` is know equal to `1`
