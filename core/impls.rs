@@ -468,6 +468,15 @@ impl Float {
         matches!(self, Float::Complex(_, _))
     }
 
+    pub fn conj(&self) -> Self {
+        if let Float::Complex(real, imag) = self {
+            let neg_imag = Float::Big(BigDecimal::from(0))._sub(imag).unwrap_or_else(|_| Float::NaN);
+            Float::Complex(real.clone(), Box::new(neg_imag))
+        } else {
+            self.clone()
+        }
+    }
+
     pub fn to_f64(&self) -> Result<f64, i16> {
         if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
             return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
@@ -1751,6 +1760,14 @@ impl PartialEq for Float {
             (Float::Infinity, Float::Infinity) => return true,
             (Float::NegInfinity, Float::NegInfinity) => return true,
             (Float::Infinity, Float::NegInfinity) | (Float::NegInfinity, Float::Infinity) => {
+                return false;
+            }
+            // Handle complex number equality: (a+bi) == (c+di) iff a==c and b==d
+            (Float::Complex(r1, i1), Float::Complex(r2, i2)) => {
+                return r1.eq(r2) && i1.eq(i2);
+            }
+            // Complex != Real
+            (Float::Complex(_, _), _) | (_, Float::Complex(_, _)) => {
                 return false;
             }
             _ => {}

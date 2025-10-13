@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.23] - 2025-10-13
+
+- Added `conj()` to Float
+- Bugfix: fixed equality and ordering for complex types
+
 ## [0.2.22] - 2025-10-13
 
 - Added complex number support for mathematical functions:

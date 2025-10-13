@@ -144,6 +144,34 @@ fn test_complex_conjugate_multiplication() {
 }
 
 #[test]
+fn test_complex_conj() {
+    // Test conjugate of complex number: (a + bi).conj() = a - bi
+    let z = create_complex("3", "4");
+    let conj = z.conj();
+    assert_eq!(conj.to_string(), "3.0 - 4.0i");
+    
+    // Conjugate of negative imaginary
+    let z2 = create_complex("5", "-7");
+    let conj2 = z2.conj();
+    assert_eq!(conj2.to_string(), "5.0 + 7.0i");
+    
+    // Conjugate of pure imaginary
+    let z3 = create_imaginary();
+    let conj3 = z3.conj();
+    assert_eq!(conj3.to_string(), "-i");
+    
+    // Conjugate of real number is itself
+    let r = create_float("42");
+    let conj_r = r.conj();
+    assert_eq!(conj_r.to_string(), "42.0");
+    
+    // Double conjugate returns original
+    let z4 = create_complex("2", "3");
+    let double_conj = z4.conj().conj();
+    assert_eq!(double_conj.to_string(), "2.0 + 3.0i");
+}
+
+#[test]
 fn test_complex_zero_addition() {
     // (3 + 4i) + (0 + 0i) = 3 + 4i
     let z1 = create_complex("3", "4");
@@ -323,4 +351,33 @@ fn test_complex_modulo_error() {
     let z2 = create_complex("1", "2");
     let result = z1 % z2;
     assert!(result.is_err());
+}
+
+#[test]
+fn test_complex_equality() {
+    // Test that complex numbers with same components are equal
+    let z1 = create_complex("3", "4");
+    let z2 = create_complex("3", "4");
+    assert_eq!(z1, z2);
+    
+    // Test imaginary unit equality
+    let i1 = create_imaginary();
+    let i2 = create_imaginary();
+    assert_eq!(i1, i2);
+    
+    // Test different complex numbers are not equal
+    let z3 = create_complex("3", "5");
+    assert_ne!(z1, z3);
+    
+    let z4 = create_complex("4", "4");
+    assert_ne!(z1, z4);
+    
+    // Test complex != real
+    let r = create_float("3");
+    assert_ne!(z1, r);
+    
+    // Test zero complex numbers
+    let z5 = create_complex("0", "0");
+    let z6 = create_complex("0", "0");
+    assert_eq!(z5, z6);
 }
