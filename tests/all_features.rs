@@ -167,7 +167,7 @@ fn test_transcendentals_and_truncation() {
 
     // log10(10)=1
     let ten = create_float("10");
-    let logt = ten.log().unwrap();
+    let logt = ten.log10().unwrap();
     assert!(
         (logt.to_f64().unwrap() - 1.0).abs() < 1e-12 || (logt.to_f64().unwrap() - 1.0).abs() < 1e-8
     );

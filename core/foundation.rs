@@ -83,4 +83,8 @@ impl Float {
     pub fn new_small<T: IntoSmallFloat>(value: T) -> Self {
         value.into_small_float()
     }
+
+    pub fn complex(real: Float, imag: Float) -> Self {
+        Self::Complex(Box::new(real), Box::new(imag))
+    }
 }

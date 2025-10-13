@@ -40,6 +40,7 @@ use math::{
     ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
     ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_UNIMPLEMENTED,
 };
+pub use crate::impls::{ApproxEq, IntoSmallFloat, IntoSmallInt};
 pub mod errors {
     use super::*;
     pub const UNIMPLEMENTED: i16 = ERR_UNIMPLEMENTED;

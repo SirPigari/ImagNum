@@ -1,8 +1,9 @@
 use crate::compat::{
-    float_is_zero, float_kind, float_to_parts, int_is_infinite, int_is_nan, int_to_parts,
-    int_to_string, make_float_from_parts, make_int_from_parts,
+    float_is_negative, float_is_zero, float_kind, float_to_parts,
+    int_is_infinite, int_is_nan, int_to_parts, int_to_string, make_float_from_parts,
+    make_int_from_parts,
 };
-use crate::foundation::{Float, FloatKind, Int, SmallInt, SmallFloat};
+use crate::foundation::{Float, FloatKind, Int, SmallFloat, SmallInt};
 use crate::functions::{create_float, create_int};
 use crate::math::{
     ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
@@ -11,42 +12,35 @@ use crate::math::{
     ln_float, ln_int, log10_float, mod_float, mul_float, pow_strings,
     bigdecimal_pow_integer,
     sin_float, sin_int, sqrt_float, sqrt_int, sub_float, tan_float, tan_int,
+    LN_10,
 };
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::{Signed, ToPrimitive, Zero};
-use num_traits::FromPrimitive;
+use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 use std::collections::HashMap;
 use std::fmt::{Binary, LowerHex, Octal};
-use std::hash::{Hash, Hasher};
 use std::str::FromStr;
+use std::hash::{Hash, Hasher};
 
-/// Normalizes a recurring decimal to a simpler form if possible
-/// For example, 0.(9) becomes 1, 0.4(9) becomes 0.5
 fn normalize_recurring_decimal(float: Float) -> Float {
     if let Float::Recurring(ref bd) = float {
         let n = bd.normalized();
         
-        // Check if it's equivalent to an integer
         let int_candidate = n.with_scale(0);
         if n == int_candidate {
             return Float::Big(int_candidate);
         }
         
-        // Check for common recurring patterns that equal terminating decimals
         let s_norm = n.normalized().to_string();
         if s_norm.contains('.') {
             let parts: Vec<&str> = s_norm.split('.').collect();
             if parts.len() == 2 {
                 let frac = parts[1];
-                // Check for patterns like .999... -> +1, .499... -> +0.5, etc.
                 if frac.chars().all(|c| c == '9') && !frac.is_empty() {
-                    // This is 0.999... pattern, add 1 to integer part
                     let int_part: i64 = parts[0].parse().unwrap_or(0);
                     return Float::Big(BigDecimal::from(int_part + 1));
                 }
-                // Check for patterns like 0.4999... = 0.5
                 if frac.len() > 1 && frac.chars().skip(1).all(|c| c == '9') {
                     let first_digit = frac.chars().next().unwrap_or('0');
                     if let Some(digit_val) = first_digit.to_digit(10) {
@@ -373,7 +367,6 @@ impl Int {
             return Err(ERR_INVALID_FORMAT);
         }
 
-        // Validate characters and build BigInt iteratively to support arbitrary size
         let mut acc = BigInt::from(0u32);
         let sixteen = BigInt::from(16u32);
         for c in s.chars() {
@@ -381,7 +374,7 @@ impl Int {
                 '0'..='9' => (c as u8 - b'0') as u32,
                 'a'..='f' => (10 + (c as u8 - b'a')) as u32,
                 'A'..='F' => (10 + (c as u8 - b'A')) as u32,
-                '_' => continue, // allow underscores for readability
+                '_' => continue,
                 _ => return Err(ERR_INVALID_FORMAT),
             };
             acc = &acc * &sixteen + BigInt::from(digit);
@@ -471,6 +464,10 @@ impl Float {
         float_kind(self) == FloatKind::Irrational
     }
 
+    pub fn is_complex(&self) -> bool {
+        matches!(self, Float::Complex(_, _))
+    }
+
     pub fn to_f64(&self) -> Result<f64, i16> {
         if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
             return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
@@ -488,6 +485,36 @@ impl Float {
         Err(ERR_INVALID_FORMAT)
     }
     pub fn sqrt(&self) -> Result<Self, i16> {
+        // Complex sqrt: sqrt(a + bi) = sqrt(r) * (cos(θ/2) + i*sin(θ/2))
+        // where r = |a + bi| and θ = atan2(b, a)
+        if let Float::Complex(real, imag) = self {
+            // sqrt(a+bi) = ±(sqrt((r+a)/2) + i*sign(b)*sqrt((r-a)/2))
+            // where r = sqrt(a² + b²)
+            let a_sq = real._mul(real)?;
+            let b_sq = imag._mul(imag)?;
+            let r_sq = a_sq._add(&b_sq)?;
+            let r = r_sq.sqrt()?;
+            
+            let r_plus_a = r._add(real)?;
+            let r_minus_a = r._sub(real)?;
+            
+            let two = Float::Big(BigDecimal::from(2));
+            let half_r_plus_a = r_plus_a._div(&two)?;
+            let half_r_minus_a = r_minus_a._div(&two)?;
+            
+            let new_real = half_r_plus_a.sqrt()?;
+            let new_imag_abs = half_r_minus_a.sqrt()?;
+            
+            // Sign of new imaginary part matches sign of old imaginary part
+            let new_imag = if float_is_negative(imag) {
+                Float::Big(BigDecimal::from(0))._sub(&new_imag_abs)?
+            } else {
+                new_imag_abs
+            };
+            
+            return Ok(Float::Complex(Box::new(new_real), Box::new(new_imag)));
+        }
+        
         let kind = float_kind(self);
         if kind == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
@@ -894,6 +921,10 @@ impl Float {
         ))
     }
     pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
+        if self.is_complex() || other.is_complex() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -915,6 +946,13 @@ impl Float {
         ))
     }
     pub fn _pow(&self, exponent: &Self) -> Result<Self, i16> {
+        // Complex power: z^w = exp(w * ln(z))
+        if self.is_complex() || exponent.is_complex() {
+            let ln_z = self.ln()?;
+            let w_ln_z = exponent._mul(&ln_z)?;
+            return w_ln_z.exp();
+        }
+        
         if float_kind(self) == FloatKind::NaN || float_kind(exponent) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -1077,11 +1115,38 @@ impl Float {
         })
     }
     pub fn abs(&self) -> Self {
+        // Complex abs: |a + bi| = sqrt(a² + b²)
+        if let Float::Complex(real, imag) = self {
+            let a_sq = real._mul(real).unwrap_or_else(|_| Float::NaN);
+            let b_sq = imag._mul(imag).unwrap_or_else(|_| Float::NaN);
+            let sum = a_sq._add(&b_sq).unwrap_or_else(|_| Float::NaN);
+            return sum.sqrt().unwrap_or(Float::NaN);
+        }
+        
         let (_m, _e, _, k) = float_to_parts(self);
         make_float_from_parts(_m, _e, false, k)
     }
 
     pub fn sin(&self) -> Result<Self, i16> {
+        // Complex sin: sin(a + bi) = sin(a)cosh(b) + i*cos(a)sinh(b)
+        if let Float::Complex(real, imag) = self {
+            let sin_a = real.sin()?;
+            let cos_a = real.cos()?;
+            let exp_b = imag.exp()?;
+            let neg_b = Float::Big(BigDecimal::from(0))._sub(imag)?;
+            let exp_neg_b = neg_b.exp()?;
+            
+            // cosh(b) = (e^b + e^(-b))/2
+            let cosh_b = exp_b._add(&exp_neg_b)?._div(&Float::Big(BigDecimal::from(2)))?;
+            // sinh(b) = (e^b - e^(-b))/2
+            let sinh_b = exp_b._sub(&exp_neg_b)?._div(&Float::Big(BigDecimal::from(2)))?;
+            
+            let new_real = sin_a._mul(&cosh_b)?;
+            let new_imag = cos_a._mul(&sinh_b)?;
+            
+            return Ok(Float::Complex(Box::new(new_real), Box::new(new_imag)));
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = sin_float(m, e, neg)?;
         if is_irr {
@@ -1091,6 +1156,26 @@ impl Float {
         }
     }
     pub fn cos(&self) -> Result<Self, i16> {
+        // Complex cos: cos(a + bi) = cos(a)cosh(b) - i*sin(a)sinh(b)
+        if let Float::Complex(real, imag) = self {
+            let sin_a = real.sin()?;
+            let cos_a = real.cos()?;
+            let exp_b = imag.exp()?;
+            let neg_b = Float::Big(BigDecimal::from(0))._sub(imag)?;
+            let exp_neg_b = neg_b.exp()?;
+            
+            // cosh(b) = (e^b + e^(-b))/2
+            let cosh_b = exp_b._add(&exp_neg_b)?._div(&Float::Big(BigDecimal::from(2)))?;
+            // sinh(b) = (e^b - e^(-b))/2
+            let sinh_b = exp_b._sub(&exp_neg_b)?._div(&Float::Big(BigDecimal::from(2)))?;
+            
+            let new_real = cos_a._mul(&cosh_b)?;
+            let neg_sin_a = Float::Big(BigDecimal::from(0))._sub(&sin_a)?;
+            let new_imag = neg_sin_a._mul(&sinh_b)?;
+            
+            return Ok(Float::Complex(Box::new(new_real), Box::new(new_imag)));
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = cos_float(m, e, neg)?;
         if is_irr {
@@ -1100,6 +1185,13 @@ impl Float {
         }
     }
     pub fn tan(&self) -> Result<Self, i16> {
+        // Complex tan: tan(z) = sin(z) / cos(z)
+        if let Float::Complex(_, _) = self {
+            let sin_z = self.sin()?;
+            let cos_z = self.cos()?;
+            return sin_z._div(&cos_z);
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = tan_float(m, e, neg)?;
         if is_irr {
@@ -1109,6 +1201,48 @@ impl Float {
         }
     }
     pub fn ln(&self) -> Result<Self, i16> {
+        // Complex ln: ln(a + bi) = ln(|a + bi|) + i*arg(a + bi)
+        // where arg(a + bi) = atan2(b, a)
+        if let Float::Complex(real, imag) = self {
+            let abs_val = self.abs();
+            let ln_abs = abs_val.ln()?;
+            
+            let arg = if float_is_zero(real) {
+                // Pure imaginary
+                if float_is_negative(imag) {
+                    Float::Big(BigDecimal::from_str("-1.5707963267948966").unwrap()) // -π/2
+                } else {
+                    Float::Big(BigDecimal::from_str("1.5707963267948966").unwrap()) // π/2
+                }
+            } else if float_is_zero(imag) {
+                if float_is_negative(real) {
+                    Float::Big(BigDecimal::from_str("3.1415926535897932").unwrap()) // π
+                } else {
+                    Float::Big(BigDecimal::from(0))
+                }
+            } else {
+                // General case: use atan(b/a) then adjust for quadrant
+                let ratio = imag._div(real)?;
+                let atan = if let Ok(f64_val) = ratio.to_f64() {
+                    Float::Big(BigDecimal::from_f64(f64_val.atan()).unwrap())
+                } else {
+                    return Err(ERR_INVALID_FORMAT);
+                };
+                
+                if float_is_negative(real) {
+                    if float_is_negative(imag) {
+                        atan._sub(&Float::Big(BigDecimal::from_str("3.1415926535897932").unwrap()))?
+                    } else {
+                        atan._add(&Float::Big(BigDecimal::from_str("3.1415926535897932").unwrap()))?
+                    }
+                } else {
+                    atan
+                }
+            };
+            
+            return Ok(Float::Complex(Box::new(ln_abs), Box::new(arg)));
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = ln_float(m, e, neg)?;
         if is_irr {
@@ -1118,6 +1252,18 @@ impl Float {
         }
     }
     pub fn exp(&self) -> Result<Self, i16> {
+        // Complex exp: exp(a + bi) = e^a * (cos(b) + i*sin(b))
+        if let Float::Complex(real, imag) = self {
+            let exp_a = real.exp()?;
+            let cos_b = imag.cos()?;
+            let sin_b = imag.sin()?;
+            
+            let new_real = exp_a._mul(&cos_b)?;
+            let new_imag = exp_a._mul(&sin_b)?;
+            
+            return Ok(Float::Complex(Box::new(new_real), Box::new(new_imag)));
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = exp_float(m, e, neg)?;
         if is_irr {
@@ -1126,7 +1272,28 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn log(&self) -> Result<Self, i16> {
+    pub fn log(&self, base: &Float) -> Result<Self, i16> {
+        // Complex log with base: log_base(z) = ln(z) / ln(base)
+        if self.is_complex() || base.is_complex() {
+            let ln_z = self.ln()?;
+            let ln_base = base.ln()?;
+            return ln_z._div(&ln_base);
+        }
+        
+        // For real numbers: log_base(x) = ln(x) / ln(base)
+        let ln_self = self.ln()?;
+        let ln_base = base.ln()?;
+        ln_self._div(&ln_base)
+    }
+    
+    pub fn log10(&self) -> Result<Self, i16> {
+        // Complex log base 10: log10(z) = ln(z) / ln(10)
+        if let Float::Complex(_, _) = self {
+            let ln_z = self.ln()?;
+            let ln_10_complex = Float::Complex(Box::new(Float::from_str(LN_10).unwrap()), Box::new(Float::Big(BigDecimal::from(0))));
+            return ln_z._div(&ln_10_complex);
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg, is_irr) = log10_float(m, e, neg)?;
         if is_irr {
@@ -1136,11 +1303,19 @@ impl Float {
         }
     }
     pub fn floor(&self) -> Result<Self, i16> {
+        if self.is_complex() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg) = floor_float(m, e, neg)?;
         Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
     }
     pub fn ceil(&self) -> Result<Self, i16> {
+        if self.is_complex() {
+            return Err(ERR_INVALID_FORMAT);
+        }
+        
         let (m, e, neg, _k) = float_to_parts(self);
         let (rm, re, rneg) = ceil_float(m, e, neg)?;
         Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
@@ -1173,6 +1348,13 @@ impl Float {
         float_is_zero(self)
     }
     pub fn round(&self, precision: usize) -> Self {
+        // Round each component of complex number separately
+        if let Float::Complex(real, imag) = self {
+            let rounded_real = real.round(precision);
+            let rounded_imag = imag.round(precision);
+            return Float::Complex(Box::new(rounded_real), Box::new(rounded_imag));
+        }
+        
         let k = float_kind(self);
         if k == FloatKind::NaN || k == FloatKind::Infinity || k == FloatKind::NegInfinity {
             return self.clone();
@@ -1346,9 +1528,6 @@ impl Float {
     pub fn is_infinity(&self) -> bool {
         float_to_parts(self).3 == FloatKind::Infinity
     }
-    /// Plain string representation for Float.
-    /// - Recurring values are expanded to 10 fractional decimal places (no rounding).
-    /// - Irrational values return their numeric form without the trailing `...` used by Display.
     pub fn to_str(&self) -> String {
         let k = float_kind(self);
         if k == FloatKind::NaN {
@@ -1663,9 +1842,6 @@ macro_rules! impl_small_float {
 
 impl_small_float!(f32 => F32, f64 => F64);
 
-// (Removed unused helper functions to silence warnings.)
-
-// Approximate a floating point using continued fractions to get p/q with max denominator
 fn approx_rational_from_f64(x: f64, max_den: u64) -> Option<(u64, u64)> {
     if x.is_nan() || x.is_infinite() { return None; }
     let mut a: Vec<u64> = Vec::new();
@@ -1677,7 +1853,6 @@ fn approx_rational_from_f64(x: f64, max_den: u64) -> Option<(u64, u64)> {
         if frac.abs() < 1e-15 { break; }
         r = 1.0 / frac;
     }
-    // build convergents
     let mut num0: i128 = 0; let mut den0: i128 = 1;
     let mut num1: i128 = 1; let mut den1: i128 = 0;
     for ai in a {
@@ -1692,13 +1867,11 @@ fn approx_rational_from_f64(x: f64, max_den: u64) -> Option<(u64, u64)> {
     Some((num1 as u64, den1 as u64))
 }
 
-// Compute nth root of a BigDecimal using Newton's method with `prec` decimal digits.
 fn bigdecimal_nth_root(a: BigDecimal, n: u32, prec: usize) -> Option<BigDecimal> {
     if n == 0 { return None; }
     if a.is_zero() { return Some(BigDecimal::from(0u32)); }
     if a.is_negative() { return None; }
     use bigdecimal::ToPrimitive;
-    // set initial guess from f64
     let af = a.to_f64().unwrap_or(1.0);
     let mut x = BigDecimal::from_f64(af.powf(1.0 / (n as f64))).unwrap_or_else(|| BigDecimal::from(1u32));
     let scale = prec as i64;
@@ -1710,10 +1883,100 @@ fn bigdecimal_nth_root(a: BigDecimal, n: u32, prec: usize) -> Option<BigDecimal>
         let t = &a / x_pow;
         let numer = (&BigDecimal::from((n-1) as i32) * &x) + t;
         let next = numer / BigDecimal::from(n as i32);
-        // check convergence by difference magnitude
         let diff = (&next - &x).abs();
         x = next.with_scale(scale);
         if diff.to_f64().unwrap_or(0.0) < 10f64.powi(-(prec as i32)) { break; }
     }
     Some(x)
+}
+
+pub trait ApproxEq {
+    fn approx_eq(&self, n: &Self, epsilon: f64) -> bool;
+}
+
+impl ApproxEq for Int {
+    fn approx_eq(&self, n: &Self, epsilon: f64) -> bool {
+        if self == n {
+            return true;
+        }
+        
+        let a_bigint = match self {
+            Int::Big(b) => b.clone(),
+            Int::Small(s) => {
+                match s {
+                    SmallInt::I8(v) => BigInt::from(*v),
+                    SmallInt::U8(v) => BigInt::from(*v),
+                    SmallInt::I16(v) => BigInt::from(*v),
+                    SmallInt::U16(v) => BigInt::from(*v),
+                    SmallInt::I32(v) => BigInt::from(*v),
+                    SmallInt::U32(v) => BigInt::from(*v),
+                    SmallInt::I64(v) => BigInt::from(*v),
+                    SmallInt::U64(v) => BigInt::from(*v),
+                    SmallInt::I128(v) => BigInt::from(*v),
+                    SmallInt::U128(v) => BigInt::from(*v),
+                    SmallInt::ISize(v) => BigInt::from(*v),
+                    SmallInt::USize(v) => BigInt::from(*v),
+                }
+            }
+        };
+        
+        let b_bigint = match n {
+            Int::Big(b) => b.clone(),
+            Int::Small(s) => {
+                match s {
+                    SmallInt::I8(v) => BigInt::from(*v),
+                    SmallInt::U8(v) => BigInt::from(*v),
+                    SmallInt::I16(v) => BigInt::from(*v),
+                    SmallInt::U16(v) => BigInt::from(*v),
+                    SmallInt::I32(v) => BigInt::from(*v),
+                    SmallInt::U32(v) => BigInt::from(*v),
+                    SmallInt::I64(v) => BigInt::from(*v),
+                    SmallInt::U64(v) => BigInt::from(*v),
+                    SmallInt::I128(v) => BigInt::from(*v),
+                    SmallInt::U128(v) => BigInt::from(*v),
+                    SmallInt::ISize(v) => BigInt::from(*v),
+                    SmallInt::USize(v) => BigInt::from(*v),
+                }
+            }
+        };
+        
+        let diff = (a_bigint - b_bigint).abs();
+        
+        let epsilon_bigint = BigInt::from(epsilon.abs() as i64);
+        
+        diff <= epsilon_bigint
+    }
+}
+
+impl ApproxEq for Float {
+    fn approx_eq(&self, n: &Self, epsilon: f64) -> bool {
+        match (self, n) {
+            (Float::NaN, _) | (_, Float::NaN) => return false,
+            (Float::Infinity, Float::Infinity) => return true,
+            (Float::NegInfinity, Float::NegInfinity) => return true,
+            (Float::Infinity, _) | (_, Float::Infinity) => return false,
+            (Float::NegInfinity, _) | (_, Float::NegInfinity) => return false,
+            _ => {}
+        }
+        
+        if self.is_complex() && n.is_complex() {
+            if let (Float::Complex(r1, i1), Float::Complex(r2, i2)) = (self, n) {
+                return r1.approx_eq(r2, epsilon) && i1.approx_eq(i2, epsilon);
+            }
+        }
+        
+        if self.is_complex() != n.is_complex() {
+            return false;
+        }
+        
+        if let Ok(diff) = self - n {
+            let abs_diff = diff.abs();
+            
+            if let Ok(diff_val) = abs_diff.to_f64() {
+                return diff_val.abs() <= epsilon;
+            }
+        }
+        
+        false
+    }
 }

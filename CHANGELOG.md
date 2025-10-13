@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.22] - 2025-10-13
+
+- Added complex number support for mathematical functions:
+  - `sqrt()`: Complex square root using formula sqrt(a+bi) = ±(sqrt((r+a)/2) + i*sign(b)*sqrt((r-a)/2))
+  - `abs()`: Complex magnitude |a+bi| = sqrt(a²+b²)
+  - `sin()`: Complex sine using sin(a+bi) = sin(a)cosh(b) + i*cos(a)sinh(b)
+  - `cos()`: Complex cosine using cos(a+bi) = cos(a)cosh(b) - i*sin(a)sinh(b)
+  - `tan()`: Complex tangent using tan(z) = sin(z)/cos(z)
+  - `ln()`: Complex natural logarithm using ln(a+bi) = ln(|a+bi|) + i*arg(a+bi)
+  - `exp()`: Complex exponential using Euler's formula exp(a+bi) = e^a * (cos(b) + i*sin(b))
+  - `pow()`: Complex exponentiation using z^w = exp(w*ln(z))
+  - `round()`: Rounds both real and imaginary components separately
+- Added `is_complex()` method to `Float` type to check if a value is a complex number
+- Refactored `log()` function to accept a base parameter: `pub fn log(&self, base: &Float)`
+- Added `log10()` function as a dedicated base-10 logarithm
+- Added 14 new tests to `tests/complex.rs` for complex mathematical functions
+
 ## [0.2.21] - 2025-10-13
 
 - Added full support for complex number arithmetic
