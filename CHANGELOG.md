@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.24] - 2025-10-17
+
+- Added support for `From` and `to` for:
+  - Float: `f32`, `f64`, `Int`
+  - Int: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `i128`, `u128`, `isize`, `usize`, `Float`
+- Made constants type constants (eg.: `Float::NAN` or `Int::ZERO`)
+
 ## [0.2.23] - 2025-10-13
 
 - Added `conj()` to Float

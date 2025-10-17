@@ -1,5 +1,6 @@
 use imagnum::ApproxEq;
 use imagnum::functions::{create_int, create_float, create_complex};
+use imagnum::Float;
 
 #[test]
 fn test_int_approx_eq_exact() {
@@ -44,21 +45,19 @@ fn test_float_approx_eq_within_epsilon() {
 
 #[test]
 fn test_float_approx_eq_nan() {
-    use imagnum::foundation::NAN;
     let a = create_float("3.14");
-    assert!(!a.approx_eq(&NAN, 1.0));
-    assert!(!NAN.approx_eq(&NAN, 1.0));
+    assert!(!a.approx_eq(&Float::NAN, 1.0));
+    assert!(!Float::NAN.approx_eq(&Float::NAN, 1.0));
 }
 
 #[test]
 fn test_float_approx_eq_infinity() {
-    use imagnum::foundation::{INFINITY, NEG_INFINITY};
     let a = create_float("3.14");
-    
-    assert!(INFINITY.approx_eq(&INFINITY, 1.0));
-    assert!(NEG_INFINITY.approx_eq(&NEG_INFINITY, 1.0));
-    assert!(!INFINITY.approx_eq(&NEG_INFINITY, 1.0));
-    assert!(!a.approx_eq(&INFINITY, 1.0));
+
+    assert!(Float::INFINITY.approx_eq(&Float::INFINITY, 1.0));
+    assert!(Float::NEG_INFINITY.approx_eq(&Float::NEG_INFINITY, 1.0));
+    assert!(!Float::INFINITY.approx_eq(&Float::NEG_INFINITY, 1.0));
+    assert!(!a.approx_eq(&Float::INFINITY, 1.0));
 }
 
 #[test]

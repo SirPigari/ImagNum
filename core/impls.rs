@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::fmt::{Binary, LowerHex, Octal};
 use std::str::FromStr;
 use std::hash::{Hash, Hasher};
+use paste::paste;
 
 fn normalize_recurring_decimal(float: Float) -> Float {
     if let Float::Recurring(ref bd) = float {
@@ -253,87 +254,87 @@ impl Int {
         let (digits, _neg, _k) = int_to_parts(self);
         digits.is_empty() || digits == "0"
     }
-    pub fn to_usize(&self) -> Result<usize, i16> {
-        if int_is_nan(self) {
-            return Err(ERR_INVALID_FORMAT);
-        }
-        if int_is_infinite(self) {
-            return Err(ERR_INFINITE_RESULT);
-        }
-        match self {
-            Int::Big(bi) => {
-                if bi.is_negative() {
-                    return Err(ERR_NEGATIVE_RESULT);
-                }
-                bi.to_usize().ok_or(ERR_INVALID_FORMAT)
-            }
-            Int::Small(si) => {
-                match si {
-                    SmallInt::USize(v) => Ok(*v),
-                    SmallInt::U64(v) => Ok(*v as usize),
-                    SmallInt::U32(v) => Ok(*v as usize),
-                    SmallInt::U16(v) => Ok(*v as usize),
-                    SmallInt::U8(v) => Ok(*v as usize),
-                    SmallInt::ISize(v) if *v >= 0 => Ok(*v as usize),
-                    SmallInt::I64(v) if *v >= 0 => Ok(*v as usize),
-                    SmallInt::I32(v) if *v >= 0 => Ok(*v as usize),
-                    SmallInt::I16(v) if *v >= 0 => Ok(*v as usize),
-                    SmallInt::I8(v) if *v >= 0 => Ok(*v as usize),
-                    _ => Err(ERR_NEGATIVE_RESULT),
-                }
-            }
-        }
-    }
-    pub fn to_i64(&self) -> Result<i64, i16> {
-        if int_is_nan(self) {
-            return Err(ERR_INVALID_FORMAT);
-        }
-        if int_is_infinite(self) {
-            return Err(ERR_INFINITE_RESULT);
-        }
-        match self {
-            Int::Big(bi) => bi.to_i64().ok_or(ERR_INVALID_FORMAT),
-            Int::Small(si) => match si {
-                SmallInt::I64(v) => Ok(*v),
-                SmallInt::U64(v) => Ok(*v as i64),
-                SmallInt::I32(v) => Ok(*v as i64),
-                SmallInt::U32(v) => Ok(*v as i64),
-                SmallInt::I16(v) => Ok(*v as i64),
-                SmallInt::U16(v) => Ok(*v as i64),
-                SmallInt::I8(v) => Ok(*v as i64),
-                SmallInt::U8(v) => Ok(*v as i64),
-                SmallInt::I128(v) => (*v).try_into().map_err(|_| ERR_INVALID_FORMAT),
-                SmallInt::U128(v) => (*v).try_into().map_err(|_| ERR_INVALID_FORMAT),
-                SmallInt::ISize(v) => Ok(*v as i64),
-                SmallInt::USize(v) => Ok(*v as i64),
-            },
-        }
-    }
-    pub fn to_i128(&self) -> Result<i128, i16> {
-        if int_is_nan(self) {
-            return Err(ERR_INVALID_FORMAT);
-        }
-        if int_is_infinite(self) {
-            return Err(ERR_INFINITE_RESULT);
-        }
-        match self {
-            Int::Big(bi) => bi.to_i128().ok_or(ERR_INVALID_FORMAT),
-            Int::Small(si) => match si {
-                SmallInt::I128(v) => Ok(*v),
-                SmallInt::U128(v) => Ok(*v as i128),
-                SmallInt::I64(v) => Ok(*v as i128),
-                SmallInt::U64(v) => Ok(*v as i128),
-                SmallInt::I32(v) => Ok(*v as i128),
-                SmallInt::U32(v) => Ok(*v as i128),
-                SmallInt::I16(v) => Ok(*v as i128),
-                SmallInt::U16(v) => Ok(*v as i128),
-                SmallInt::I8(v) => Ok(*v as i128),
-                SmallInt::U8(v) => Ok(*v as i128),
-                SmallInt::ISize(v) => Ok(*v as i128),
-                SmallInt::USize(v) => Ok(*v as i128),
-            },
-        }
-    }
+    // pub fn to_usize(&self) -> Result<usize, i16> {
+    //     if int_is_nan(self) {
+    //         return Err(ERR_INVALID_FORMAT);
+    //     }
+    //     if int_is_infinite(self) {
+    //         return Err(ERR_INFINITE_RESULT);
+    //     }
+    //     match self {
+    //         Int::Big(bi) => {
+    //             if bi.is_negative() {
+    //                 return Err(ERR_NEGATIVE_RESULT);
+    //             }
+    //             bi.to_usize().ok_or(ERR_INVALID_FORMAT)
+    //         }
+    //         Int::Small(si) => {
+    //             match si {
+    //                 SmallInt::USize(v) => Ok(*v),
+    //                 SmallInt::U64(v) => Ok(*v as usize),
+    //                 SmallInt::U32(v) => Ok(*v as usize),
+    //                 SmallInt::U16(v) => Ok(*v as usize),
+    //                 SmallInt::U8(v) => Ok(*v as usize),
+    //                 SmallInt::ISize(v) if *v >= 0 => Ok(*v as usize),
+    //                 SmallInt::I64(v) if *v >= 0 => Ok(*v as usize),
+    //                 SmallInt::I32(v) if *v >= 0 => Ok(*v as usize),
+    //                 SmallInt::I16(v) if *v >= 0 => Ok(*v as usize),
+    //                 SmallInt::I8(v) if *v >= 0 => Ok(*v as usize),
+    //                 _ => Err(ERR_NEGATIVE_RESULT),
+    //             }
+    //         }
+    //     }
+    // }
+    // pub fn to_i64(&self) -> Result<i64, i16> {
+    //     if int_is_nan(self) {
+    //         return Err(ERR_INVALID_FORMAT);
+    //     }
+    //     if int_is_infinite(self) {
+    //         return Err(ERR_INFINITE_RESULT);
+    //     }
+    //     match self {
+    //         Int::Big(bi) => bi.to_i64().ok_or(ERR_INVALID_FORMAT),
+    //         Int::Small(si) => match si {
+    //             SmallInt::I64(v) => Ok(*v),
+    //             SmallInt::U64(v) => Ok(*v as i64),
+    //             SmallInt::I32(v) => Ok(*v as i64),
+    //             SmallInt::U32(v) => Ok(*v as i64),
+    //             SmallInt::I16(v) => Ok(*v as i64),
+    //             SmallInt::U16(v) => Ok(*v as i64),
+    //             SmallInt::I8(v) => Ok(*v as i64),
+    //             SmallInt::U8(v) => Ok(*v as i64),
+    //             SmallInt::I128(v) => (*v).try_into().map_err(|_| ERR_INVALID_FORMAT),
+    //             SmallInt::U128(v) => (*v).try_into().map_err(|_| ERR_INVALID_FORMAT),
+    //             SmallInt::ISize(v) => Ok(*v as i64),
+    //             SmallInt::USize(v) => Ok(*v as i64),
+    //         },
+    //     }
+    // }
+    // pub fn to_i128(&self) -> Result<i128, i16> {
+    //     if int_is_nan(self) {
+    //         return Err(ERR_INVALID_FORMAT);
+    //     }
+    //     if int_is_infinite(self) {
+    //         return Err(ERR_INFINITE_RESULT);
+    //     }
+    //     match self {
+    //         Int::Big(bi) => bi.to_i128().ok_or(ERR_INVALID_FORMAT),
+    //         Int::Small(si) => match si {
+    //             SmallInt::I128(v) => Ok(*v),
+    //             SmallInt::U128(v) => Ok(*v as i128),
+    //             SmallInt::I64(v) => Ok(*v as i128),
+    //             SmallInt::U64(v) => Ok(*v as i128),
+    //             SmallInt::I32(v) => Ok(*v as i128),
+    //             SmallInt::U32(v) => Ok(*v as i128),
+    //             SmallInt::I16(v) => Ok(*v as i128),
+    //             SmallInt::U16(v) => Ok(*v as i128),
+    //             SmallInt::I8(v) => Ok(*v as i128),
+    //             SmallInt::U8(v) => Ok(*v as i128),
+    //             SmallInt::ISize(v) => Ok(*v as i128),
+    //             SmallInt::USize(v) => Ok(*v as i128),
+    //         },
+    //     }
+    // }
     pub fn from_i64(value: i64) -> Self {
         if value < 0 {
             make_int_from_parts(value.abs().to_string(), true, FloatKind::Finite)
@@ -477,22 +478,22 @@ impl Float {
         }
     }
 
-    pub fn to_f64(&self) -> Result<f64, i16> {
-        if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
-            return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
-        }
-        let k = float_kind(self);
-        if k == FloatKind::NaN {
-            return Err(ERR_INVALID_FORMAT);
-        }
-        if k == FloatKind::Infinity {
-            return Ok(f64::INFINITY);
-        }
-        if k == FloatKind::NegInfinity {
-            return Ok(f64::NEG_INFINITY);
-        }
-        Err(ERR_INVALID_FORMAT)
-    }
+    // pub fn to_f64(&self) -> Result<f64, i16> {
+    //     if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
+    //         return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
+    //     }
+    //     let k = float_kind(self);
+    //     if k == FloatKind::NaN {
+    //         return Err(ERR_INVALID_FORMAT);
+    //     }
+    //     if k == FloatKind::Infinity {
+    //         return Ok(f64::INFINITY);
+    //     }
+    //     if k == FloatKind::NegInfinity {
+    //         return Ok(f64::NEG_INFINITY);
+    //     }
+    //     Err(ERR_INVALID_FORMAT)
+    // }
     pub fn sqrt(&self) -> Result<Self, i16> {
         // Complex sqrt: sqrt(a + bi) = sqrt(r) * (cos(θ/2) + i*sin(θ/2))
         // where r = |a + bi| and θ = atan2(b, a)
@@ -1639,17 +1640,139 @@ fn normalize_int_digits(digits: &str) -> String {
     }
 }
 
-impl From<f64> for Float {
-    fn from(value: f64) -> Self {
-        create_float(&value.to_string())
+macro_rules! impl_from_for_int {
+    ($($t:ty),+) => {
+        $(
+            impl From<$t> for Int {
+                fn from(value: $t) -> Self {
+                    create_int(&value.to_string())
+                }
+            }
+
+            paste! {
+                impl Int {
+                    pub fn [<to_ $t>](&self) -> Result<$t, i16> {
+                        if int_is_nan(self) {
+                            return Err(ERR_INVALID_FORMAT);
+                        }
+                        if int_is_infinite(self) {
+                            return Err(ERR_INFINITE_RESULT);
+                        }
+
+                        match self {
+                            Int::Big(bi) => {
+                                let val = bi.[<to_ $t>]().ok_or(ERR_INVALID_FORMAT)?;
+                                Ok(val)
+                            }
+                            Int::Small(si) => {
+                                let val: i128 = match si {
+                                    SmallInt::I64(v) => *v as i128,
+                                    SmallInt::U64(v) => *v as i128,
+                                    SmallInt::I32(v) => *v as i128,
+                                    SmallInt::U32(v) => *v as i128,
+                                    SmallInt::I16(v) => *v as i128,
+                                    SmallInt::U16(v) => *v as i128,
+                                    SmallInt::I8(v) => *v as i128,
+                                    SmallInt::U8(v) => *v as i128,
+                                    SmallInt::I128(v) => *v,
+                                    SmallInt::U128(v) => *v as i128,
+                                    SmallInt::ISize(v) => *v as i128,
+                                    SmallInt::USize(v) => *v as i128,
+                                };
+                                if val < 0 && is_unsigned!($t) {
+                                    return Err(ERR_NEGATIVE_RESULT);
+                                }
+                                val.try_into().map_err(|_| ERR_INVALID_FORMAT)
+                            }
+                        }
+                    }
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! impl_from_for_float {
+    ($($t:ty),+) => {
+        $(
+            impl From<$t> for Float {
+                fn from(value: $t) -> Self {
+                    create_float(&value.to_string())
+                }
+            }
+
+            paste! {
+                impl Float {
+                    pub fn [<to_ $t>](&self) -> Result<$t, i16> {
+                        match self {
+                            Float::NaN => Err(ERR_INVALID_FORMAT),
+                            Float::Infinity => Ok($t::INFINITY),
+                            Float::NegInfinity => Ok($t::NEG_INFINITY),
+                            Float::Complex(_, _) => Err(ERR_INVALID_FORMAT),
+
+                            Float::Big(bd) | Float::Recurring(bd) | Float::Irrational(bd) => {
+                                let val = bd.[<to_ $t>]().ok_or(ERR_INVALID_FORMAT)?;
+                                if val < 0.0 && is_unsigned!($t) {
+                                    return Err(ERR_NEGATIVE_RESULT);
+                                }
+                                Ok(val)
+                            }
+
+                            Float::Small(sf) => match sf {
+                                SmallFloat::F64(v) => {
+                                    if *v < 0.0 && is_unsigned!($t) {
+                                        return Err(ERR_NEGATIVE_RESULT);
+                                    }
+                                    if <$t>::MIN as f64 <= *v && *v <= <$t>::MAX as f64 {
+                                        Ok(*v as $t)
+                                    } else {
+                                        Err(ERR_INVALID_FORMAT)
+                                    }
+                                }
+                                SmallFloat::F32(v) => {
+                                    if *v < 0.0 && is_unsigned!($t) {
+                                        return Err(ERR_NEGATIVE_RESULT);
+                                    }
+                                    if <$t>::MIN as f32 <= *v && *v <= <$t>::MAX as f32 {
+                                        Ok(*v as $t)
+                                    } else {
+                                        Err(ERR_INVALID_FORMAT)
+                                    }
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! is_unsigned {
+    (u8) => { true };
+    (u16) => { true };
+    (u32) => { true };
+    (u64) => { true };
+    (u128) => { true };
+    (usize) => { true };
+    ($t:ty) => { false }; // all signed types
+}
+
+impl_from_for_int!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize);
+impl_from_for_float!(f32, f64);
+
+impl From<Int> for Float {
+    fn from(value: Int) -> Self {
+        Float::from_int(&value).unwrap_or(Float::NaN)
     }
 }
 
-impl From<i64> for Int {
-    fn from(value: i64) -> Self {
-        create_int(&value.to_string())
+impl From<Float> for Int {
+    fn from(value: Float) -> Self {
+        value.to_int().unwrap_or_else(|_| make_int_from_parts("0".to_string(), false, FloatKind::NaN))
     }
 }
+
 
 impl Binary for Int {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1662,7 +1785,6 @@ impl Binary for Int {
         }
     }
 }
-
 impl Octal for Int {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (digits, negative, _k) = int_to_parts(self);
@@ -1674,7 +1796,6 @@ impl Octal for Int {
         }
     }
 }
-
 impl LowerHex for Int {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (digits, negative, _k) = int_to_parts(self);
@@ -1684,6 +1805,13 @@ impl LowerHex for Int {
         } else {
             Err(std::fmt::Error)
         }
+    }
+}
+impl Hash for Int {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let (digits, negative, _k) = int_to_parts(self);
+        digits.hash(state);
+        negative.hash(state);
     }
 }
 
@@ -1702,15 +1830,6 @@ impl LowerHex for Float {
         Err(std::fmt::Error)
     }
 }
-
-impl Hash for Int {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let (digits, negative, _k) = int_to_parts(self);
-        digits.hash(state);
-        negative.hash(state);
-    }
-}
-
 impl Hash for Float {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let (mant, exp, neg, k) = float_to_parts(self);
@@ -1718,30 +1837,6 @@ impl Hash for Float {
         exp.hash(state);
         neg.hash(state);
         k.hash(state);
-    }
-}
-
-impl From<usize> for Int {
-    fn from(value: usize) -> Self {
-        create_int(&value.to_string())
-    }
-}
-
-impl From<isize> for Int {
-    fn from(value: isize) -> Self {
-        create_int(&value.to_string())
-    }
-}
-
-impl From<f32> for Float {
-    fn from(value: f32) -> Self {
-        create_float(&value.to_string())
-    }
-}
-
-impl From<i32> for Int {
-    fn from(value: i32) -> Self {
-        create_int(&value.to_string())
     }
 }
 

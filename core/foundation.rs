@@ -5,14 +5,6 @@ use std::str::FromStr;
 
 use crate::impls::{IntoSmallInt, IntoSmallFloat};
 
-pub static NAN: Lazy<Float> = Lazy::new(|| Float::NaN);
-pub static INFINITY: Lazy<Float> = Lazy::new(|| Float::Infinity);
-pub static NEG_INFINITY: Lazy<Float> = Lazy::new(|| Float::NegInfinity);
-pub static FLOAT_ZERO: Lazy<Float> = Lazy::new(|| Float::new());
-pub static INT_ZERO: Lazy<Int> = Lazy::new(|| Int::new());
-pub static FLOAT_ONE: Lazy<Float> = Lazy::new(|| Float::from(1.0));
-pub static INT_ONE: Lazy<Int> = Lazy::new(|| Int::from(1));
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash, Copy)]
 pub enum FloatKind {
     NaN,
@@ -66,6 +58,10 @@ pub enum Float {
 }
 
 impl Int {
+    pub const ZERO: Lazy<Int> = Lazy::new(|| Int::new());
+    pub const ONE: Lazy<Int> = Lazy::new(|| Int::from(1));
+    pub const FOURTY_TWO: Lazy<Int> = Lazy::new(|| Int::from(42));
+
     pub fn new() -> Self {
         Self::Big(BigInt::from(0))
     }
@@ -76,6 +72,13 @@ impl Int {
 }
 
 impl Float {
+    pub const NAN: Lazy<Float> = Lazy::new(|| Float::NaN);
+    pub const INFINITY: Lazy<Float> = Lazy::new(|| Float::Infinity);
+    pub const NEG_INFINITY: Lazy<Float> = Lazy::new(|| Float::NegInfinity);
+    pub const ONE: Lazy<Float> = Lazy::new(|| Float::from(1.0));
+    pub const ZERO: Lazy<Float> = Lazy::new(|| Float::new());
+    pub const FOURTY_TWO: Lazy<Float> = Lazy::new(|| Float::from(42.0));
+
     pub fn new() -> Self {
         Self::Big(BigDecimal::from_str("0").unwrap())
     }
