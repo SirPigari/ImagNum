@@ -629,7 +629,9 @@ impl Display for Float {
         if neg {
             write!(f, "-")?;
         }
-        if exp >= -50 && exp <= 50 {
+        
+        // For irrational numbers, always use decimal format regardless of exponent size
+        if k == FloatKind::Irrational || (exp >= -50 && exp <= 50) {
             let mantissa = mant.trim_start_matches('0');
             let mantissa = if mantissa.is_empty() { "0" } else { mantissa };
             if exp == 0 {

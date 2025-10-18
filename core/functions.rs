@@ -3,7 +3,9 @@ use crate::math::{
     ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
     ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_UNIMPLEMENTED,
 };
+use crate::foundation::SmallFloat;
 use bigdecimal::BigDecimal;
+use bigdecimal::FromPrimitive;
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero, ToPrimitive};
 use std::str::FromStr;
@@ -173,6 +175,21 @@ pub fn create_float(float: &str) -> Float {
     match BigDecimal::from_str(s) {
         Ok(bd) => Float::Big(bd),
         Err(_) => Float::NaN,
+    }
+}
+
+pub fn create_irrational(float: &str) -> Float {
+    let f = create_float(float);
+    match f {
+        Float::Big(bd) => Float::Irrational(bd),
+        Float::Small(sf) => {
+            let bd = match sf {
+                SmallFloat::F32(v) => BigDecimal::from_f32(v).unwrap_or_else(|| BigDecimal::from(0)),
+                SmallFloat::F64(v) => BigDecimal::from_f64(v).unwrap_or_else(|| BigDecimal::from(0)),
+            };
+            Float::Irrational(bd)
+        }
+        _ => f,
     }
 }
 

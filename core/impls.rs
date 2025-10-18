@@ -532,8 +532,16 @@ impl Float {
         if kind == FloatKind::Infinity {
             return Ok(Float::Infinity);
         }
-        if kind == FloatKind::NegInfinity || self.is_negative() {
+        if kind == FloatKind::NegInfinity {
             return Err(ERR_NEGATIVE_SQRT);
+        }
+        if self.is_negative() {
+            // Handle sqrt of negative real numbers by returning complex result
+            // sqrt(-x) = i * sqrt(x)
+            let pos_self = Float::Big(BigDecimal::from(0))._sub(self)?;
+            let pos_sqrt = pos_self.sqrt()?;
+            let zero = Float::Big(BigDecimal::from(0));
+            return Ok(Float::Complex(Box::new(zero), Box::new(pos_sqrt)));
         }
         let (m, e, neg, _k) = float_to_parts(self);
         let (m, e, neg, is_irr) = sqrt_float(m, e, neg)?;

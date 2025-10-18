@@ -1,4 +1,4 @@
-use imagnum::{Float, Int, create_float, create_int, create_complex, create_imaginary, errors::get_error_message};
+use imagnum::{Float, Int, create_float, create_int, create_complex, create_imaginary, create_irrational, errors::get_error_message};
 use std::io::{self, Write};
 use std::collections::HashMap;
 
@@ -231,10 +231,10 @@ fn parse_token(token: &str) -> Result<Number, i16> {
 // Constants
 fn get_constant(name: &str) -> Option<Number> {
     match name {
-        "pi" | "PI" => Some(Number::Float(create_float("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067"))),
-        "e" | "E" => Some(Number::Float(create_float("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427"))),
-        "phi" | "PHI" => Some(Number::Float(create_float("1.618033988749894848204586834365638117720309179805762862135448622705260462818902449707207204189391137"))),
-        "sqrt2" | "SQRT2" => Some(Number::Float(create_float("1.414213562373095048801688724209698078569671875376948073176679737990732478462107038850387534327641573"))),
+        "pi" | "PI" => Some(Number::Float(create_irrational("3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067"))),
+        "e" | "E" => Some(Number::Float(create_irrational("2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427"))),
+        "phi" | "PHI" => Some(Number::Float(create_irrational("1.618033988749894848204586834365638117720309179805762862135448622705260462818902449707207204189391137"))),
+        "sqrt2" | "SQRT2" => Some(Number::Float(create_irrational("1.414213562373095048801688724209698078569671875376948073176679737990732478462107038850387534327641573"))),
         "inf" | "INF" | "infinity" | "INFINITY" => Some(Number::Float(create_float("inf"))),
         "nan" | "NaN" | "NAN" => Some(Number::Float(create_float("nan"))),
         "i" | "I" => Some(Number::Float(create_imaginary())),
@@ -302,7 +302,6 @@ fn main() {
     
     println!("ImagNum Calculator REPL v{}", imagnum::VERSION);
     println!("Type 'help' for assistance, 'quit' to exit");
-    println!();
 
     loop {
         print!("calc> ");
@@ -311,8 +310,6 @@ fn main() {
         let mut line = String::new();
         match io::stdin().read_line(&mut line) {
             Ok(0) => {
-                // EOF encountered (Ctrl+D on Unix, Ctrl+Z on Windows, or end of piped input)
-                println!("\nGoodbye!");
                 break;
             }
             Ok(_) => {
@@ -324,7 +321,7 @@ fn main() {
                 // Handle special commands
                 match line {
             "quit" | "exit" => {
-                println!("Goodbye!");
+                println!("Exiting!");
                 std::process::exit(0);
             }
             "help" | "?" => {
@@ -410,37 +407,35 @@ fn handle_special_functions(input: &str, variables: &HashMap<String, Number>) ->
                 match &num {
                     Number::Int(i) => {
                         info.push("Type: Integer".to_string());
-                        info.push(format!("Value: {}", i));
-                        info.push(format!("Negative: {}", i.is_negative()));
-                        info.push(format!("Zero: {}", i.is_zero()));
+                        info.push(format!("    Value: {}", i));
+                        info.push(format!("    Negative: {}", i.is_negative()));
+                        info.push(format!("    Zero: {}", i.is_zero()));
                     }
                     Number::Float(f) => {
                         info.push("Type: Float".to_string());
-                        info.push(format!("Value: {}", f));
+                        info.push(format!("    Value: {}", f));
                         
                         // Check special values first (NaN and Infinity take precedence)
                         if f.is_nan() {
-                            info.push("Special: NaN (Not a Number)".to_string());
+                            info.push("    Special: NaN (Not a Number)".to_string());
                         } else if f.is_infinity() {
-                            info.push("Special: Infinity".to_string());
-                            info.push(format!("Negative: {}", f.is_negative()));
+                            info.push("    Special: Infinity".to_string());
+                            info.push(format!("    Negative: {}", f.is_negative()));
                         } else {
-                            // Normal numbers - show detailed properties
-                            if f.is_complex() {
-                                info.push("Type: Complex".to_string());
-                            } else {
-                                info.push("Type: Real".to_string());
-                            }
-                            
-                            info.push(format!("Zero: {}", f.is_zero()));
+                            let mut type_str = "    Type: ".to_string();
+                            type_str.push_str(match f {
+                                Float::Big(_) | Float::Small(_) => "Real",
+                                Float::Irrational(_) => "Irrational",
+                                Float::Recurring(_) => "Recurring Decimal",
+                                Float::Complex(_, _) => "Complex",
+                                Float::NaN => "NaN",
+                                Float::Infinity => "Infinity",
+                                Float::NegInfinity => "Negative Infinity",
+                            });
+                            info.push(type_str);
+
                             if !f.is_zero() {
-                                info.push(format!("Negative: {}", f.is_negative()));
-                            }
-                            
-                            // Only show mathematical properties for finite real numbers
-                            if !f.is_complex() && !f.is_zero() {
-                                info.push(format!("Recurring: {}", f.is_recurring()));
-                                info.push(format!("Irrational: {}", f.is_irrational()));
+                                info.push(format!("    Negative: {}", f.is_negative()));
                             }
                         }
                     }
@@ -613,6 +608,13 @@ fn evaluate_expression(expr: &str, variables: &HashMap<String, Number>) -> Resul
         
         // Try to parse as number
         return parse_token(token);
+    }
+
+    // Handle unary minus (e.g., "-1" becomes ["-", "1"])
+    if tokens.len() == 2 && tokens[0] == "-" {
+        let operand = evaluate_expression(&tokens[1], variables)?;
+        let zero = Number::Int(create_int("0"));
+        return zero.sub(operand);
     }
 
     // Handle function calls

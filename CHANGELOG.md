@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.25] - 2025-10-17
+
+- Updated and renamed `simple-repl.rs` to `imagnum-cli.rs`
+
 ## [0.2.24] - 2025-10-17
 
 - Added support for `From` and `to` for:
