@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::fmt::{Binary, LowerHex, Octal};
 use std::str::FromStr;
 use std::hash::{Hash, Hasher};
-use paste::paste;
+use pastey::paste;
 
 fn normalize_recurring_decimal(float: Float) -> Float {
     if let Float::Recurring(ref bd) = float {
@@ -79,12 +79,19 @@ impl Int {
         }
     }
 
+    pub fn to_bigint(&self) -> Result<BigInt, i8> {
+        match self {
+            Int::Big(bi) => Ok(bi.clone()),
+            Int::Small(si) => Ok(Int::smallint_to_bigint(si)),
+        }
+    }
+
     pub fn is_negative(&self) -> bool {
         let (_d, neg, _k) = int_to_parts(self);
         neg
     }
 
-    pub fn to_float(&self) -> Result<Float, i16> {
+    pub fn to_float(&self) -> Result<Float, i8> {
         match self {
             Int::Big(bi) => {
                 let bd = BigDecimal::from(bi.clone());
@@ -99,7 +106,7 @@ impl Int {
             }
         }
     }
-    pub fn _add(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _add(&self, other: &Self) -> Result<Self, i8> {
         let a = match self {
             Int::Big(bi) => bi.clone(),
             Int::Small(si) => Int::smallint_to_bigint(si),
@@ -110,7 +117,7 @@ impl Int {
         };
         Ok(Int::Big(a + b))
     }
-    pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _sub(&self, other: &Self) -> Result<Self, i8> {
         let a = match self {
             Int::Big(bi) => bi.clone(),
             Int::Small(si) => Int::smallint_to_bigint(si),
@@ -121,7 +128,7 @@ impl Int {
         };
         Ok(Int::Big(a - b))
     }
-    pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _mul(&self, other: &Self) -> Result<Self, i8> {
         let a = match self {
             Int::Big(bi) => bi.clone(),
             Int::Small(si) => Int::smallint_to_bigint(si),
@@ -132,7 +139,7 @@ impl Int {
         };
         Ok(Int::Big(a * b))
     }
-    pub fn _div(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _div(&self, other: &Self) -> Result<Self, i8> {
         let a = match self {
             Int::Big(bi) => bi.clone(),
             Int::Small(si) => Int::smallint_to_bigint(si),
@@ -153,7 +160,7 @@ impl Int {
         } else { quot };
         Ok(Int::Big(rounded))
     }
-    pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _modulo(&self, other: &Self) -> Result<Self, i8> {
         let a = match self {
             Int::Big(bi) => bi.clone(),
             Int::Small(si) => Int::smallint_to_bigint(si),
@@ -165,7 +172,7 @@ impl Int {
         if b.is_zero() { return Err(ERR_DIV_BY_ZERO); }
         Ok(Int::Big(a % b))
     }
-    pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
+    pub fn pow(&self, exponent: &Self) -> Result<Self, i8> {
         let (ed, eneg, _ek) = int_to_parts(exponent);
         if eneg {
             return Err(ERR_INVALID_FORMAT);
@@ -180,7 +187,7 @@ impl Int {
         };
         Ok(make_int_from_parts(digits, negative, FloatKind::Finite))
     }
-    pub fn sqrt(&self) -> Result<Float, i16> {
+    pub fn sqrt(&self) -> Result<Float, i8> {
         let (mant, neg, _k) = int_to_parts(self);
         let (m2, e2, neg2, is_irr) = sqrt_int(mant, neg)?;
         if is_irr {
@@ -194,7 +201,7 @@ impl Int {
         make_int_from_parts(digits, false, FloatKind::Finite)
     }
 
-    pub fn sin(&self) -> Result<Float, i16> {
+    pub fn sin(&self) -> Result<Float, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (m, e, neg2, is_irr) = sin_int(digits, neg)?;
         if is_irr {
@@ -203,7 +210,7 @@ impl Int {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
         }
     }
-    pub fn cos(&self) -> Result<Float, i16> {
+    pub fn cos(&self) -> Result<Float, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (m, e, neg2, is_irr) = cos_int(digits, neg)?;
         if is_irr {
@@ -212,7 +219,7 @@ impl Int {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
         }
     }
-    pub fn tan(&self) -> Result<Float, i16> {
+    pub fn tan(&self) -> Result<Float, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (m, e, neg2, is_irr) = tan_int(digits, neg)?;
         if is_irr {
@@ -221,7 +228,7 @@ impl Int {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
         }
     }
-    pub fn ln(&self) -> Result<Float, i16> {
+    pub fn ln(&self) -> Result<Float, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (m, e, neg2, is_irr) = ln_int(digits, neg)?;
         if is_irr {
@@ -230,7 +237,7 @@ impl Int {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
         }
     }
-    pub fn exp(&self) -> Result<Float, i16> {
+    pub fn exp(&self) -> Result<Float, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (m, e, neg2, is_irr) = exp_int(digits, neg)?;
         if is_irr {
@@ -239,12 +246,12 @@ impl Int {
             Ok(make_float_from_parts(m, e, neg2, FloatKind::Finite))
         }
     }
-    pub fn floor(&self) -> Result<Self, i16> {
+    pub fn floor(&self) -> Result<Self, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (d, n) = floor_int(digits, neg)?;
         Ok(make_int_from_parts(d, n, FloatKind::Finite))
     }
-    pub fn ceil(&self) -> Result<Self, i16> {
+    pub fn ceil(&self) -> Result<Self, i8> {
         let (digits, neg, _k) = int_to_parts(self);
         let (d, n) = ceil_int(digits, neg)?;
         Ok(make_int_from_parts(d, n, FloatKind::Finite))
@@ -254,7 +261,7 @@ impl Int {
         let (digits, _neg, _k) = int_to_parts(self);
         digits.is_empty() || digits == "0"
     }
-    // pub fn to_usize(&self) -> Result<usize, i16> {
+    // pub fn to_usize(&self) -> Result<usize, i8> {
     //     if int_is_nan(self) {
     //         return Err(ERR_INVALID_FORMAT);
     //     }
@@ -278,14 +285,14 @@ impl Int {
     //                 SmallInt::ISize(v) if *v >= 0 => Ok(*v as usize),
     //                 SmallInt::I64(v) if *v >= 0 => Ok(*v as usize),
     //                 SmallInt::I32(v) if *v >= 0 => Ok(*v as usize),
-    //                 SmallInt::I16(v) if *v >= 0 => Ok(*v as usize),
+    //                 SmallInt::i8(v) if *v >= 0 => Ok(*v as usize),
     //                 SmallInt::I8(v) if *v >= 0 => Ok(*v as usize),
     //                 _ => Err(ERR_NEGATIVE_RESULT),
     //             }
     //         }
     //     }
     // }
-    // pub fn to_i64(&self) -> Result<i64, i16> {
+    // pub fn to_i64(&self) -> Result<i64, i8> {
     //     if int_is_nan(self) {
     //         return Err(ERR_INVALID_FORMAT);
     //     }
@@ -299,7 +306,7 @@ impl Int {
     //             SmallInt::U64(v) => Ok(*v as i64),
     //             SmallInt::I32(v) => Ok(*v as i64),
     //             SmallInt::U32(v) => Ok(*v as i64),
-    //             SmallInt::I16(v) => Ok(*v as i64),
+    //             SmallInt::i8(v) => Ok(*v as i64),
     //             SmallInt::U16(v) => Ok(*v as i64),
     //             SmallInt::I8(v) => Ok(*v as i64),
     //             SmallInt::U8(v) => Ok(*v as i64),
@@ -310,7 +317,7 @@ impl Int {
     //         },
     //     }
     // }
-    // pub fn to_i128(&self) -> Result<i128, i16> {
+    // pub fn to_i128(&self) -> Result<i128, i8> {
     //     if int_is_nan(self) {
     //         return Err(ERR_INVALID_FORMAT);
     //     }
@@ -326,7 +333,7 @@ impl Int {
     //             SmallInt::U64(v) => Ok(*v as i128),
     //             SmallInt::I32(v) => Ok(*v as i128),
     //             SmallInt::U32(v) => Ok(*v as i128),
-    //             SmallInt::I16(v) => Ok(*v as i128),
+    //             SmallInt::i8(v) => Ok(*v as i128),
     //             SmallInt::U16(v) => Ok(*v as i128),
     //             SmallInt::I8(v) => Ok(*v as i128),
     //             SmallInt::U8(v) => Ok(*v as i128),
@@ -349,7 +356,7 @@ impl Int {
             make_int_from_parts(value.to_string(), false, FloatKind::Finite)
         }
     }
-    pub fn from_hex(value: &str) -> Result<Self, i16> {
+    pub fn from_hex(value: &str) -> Result<Self, i8> {
         if value.is_empty() {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -386,7 +393,7 @@ impl Int {
         Ok(Int::Big(acc))
     }
 
-    pub fn from_str_radix(value: &str, radix: u32) -> Result<Self, i16> {
+    pub fn from_str_radix(value: &str, radix: u32) -> Result<Self, i8> {
         if radix < 2 || radix > 36 {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -418,7 +425,7 @@ impl Int {
         Ok(Int::Big(acc))
     }
 
-    pub fn to_str_radix(&self, radix: u32) -> Result<String, i16> {
+    pub fn to_str_radix(&self, radix: u32) -> Result<String, i8> {
         if radix < 2 || radix > 36 {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -430,7 +437,7 @@ impl Int {
             }
         }
     }
-    pub fn from_str(value: &str) -> Result<Self, i16> {
+    pub fn from_str(value: &str) -> Result<Self, i8> {
         if value.is_empty() {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -478,23 +485,27 @@ impl Float {
         }
     }
 
-    // pub fn to_f64(&self) -> Result<f64, i16> {
-    //     if let Some(bd) = crate::compat::float_to_bigdecimal(self) {
-    //         return bd.to_f64().ok_or(ERR_INVALID_FORMAT);
-    //     }
-    //     let k = float_kind(self);
-    //     if k == FloatKind::NaN {
-    //         return Err(ERR_INVALID_FORMAT);
-    //     }
-    //     if k == FloatKind::Infinity {
-    //         return Ok(f64::INFINITY);
-    //     }
-    //     if k == FloatKind::NegInfinity {
-    //         return Ok(f64::NEG_INFINITY);
-    //     }
-    //     Err(ERR_INVALID_FORMAT)
-    // }
-    pub fn sqrt(&self) -> Result<Self, i16> {
+    pub fn to_bigdecimal(&self) -> (Option<BigDecimal>, Option<BigDecimal>) {
+        match self {
+            Float::Big(bd) => (Some(bd.clone()), None),
+            Float::Small(sf) => {
+                match sf {
+                    SmallFloat::F32(v) => (Some(BigDecimal::from_f32(*v).unwrap_or(BigDecimal::from(0))), None),
+                    SmallFloat::F64(v) => (Some(BigDecimal::from_f64(*v).unwrap_or(BigDecimal::from(0))), None),
+                }
+            }
+            Float::Complex(real, imag) => {
+                let (r_bd_opt, _) = real.to_bigdecimal();
+                let (i_bd_opt, _) = imag.to_bigdecimal();
+                (r_bd_opt, i_bd_opt)
+            }
+            Float::Irrational(irr) => (Some(irr.clone()), None),
+            Float::Recurring(rec) => (Some(rec.clone()), None),
+            Float::Infinity | Float::NegInfinity | Float::NaN => (None, None),
+        }
+    }
+
+    pub fn sqrt(&self) -> Result<Self, i8> {
         // Complex sqrt: sqrt(a + bi) = sqrt(r) * (cos(θ/2) + i*sin(θ/2))
         // where r = |a + bi| and θ = atan2(b, a)
         if let Float::Complex(real, imag) = self {
@@ -550,7 +561,7 @@ impl Float {
         }
         Ok(make_float_from_parts(m, e, neg, FloatKind::Finite))
     }
-    pub fn _add(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _add(&self, other: &Self) -> Result<Self, i8> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -612,7 +623,7 @@ impl Float {
             result_kind,
         ))
     }
-    pub fn _sub(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _sub(&self, other: &Self) -> Result<Self, i8> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -689,7 +700,7 @@ impl Float {
             result_kind,
         ))
     }
-    pub fn _mul(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _mul(&self, other: &Self) -> Result<Self, i8> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -766,7 +777,7 @@ impl Float {
         
         Ok(result)
     }
-    pub fn _div(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _div(&self, other: &Self) -> Result<Self, i8> {
         if float_kind(self) == FloatKind::NaN || float_kind(other) == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -938,7 +949,7 @@ impl Float {
             FloatKind::Finite,
         ))
     }
-    pub fn _modulo(&self, other: &Self) -> Result<Self, i16> {
+    pub fn _modulo(&self, other: &Self) -> Result<Self, i8> {
         if self.is_complex() || other.is_complex() {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -963,7 +974,7 @@ impl Float {
             FloatKind::Finite,
         ))
     }
-    pub fn _pow(&self, exponent: &Self) -> Result<Self, i16> {
+    pub fn _pow(&self, exponent: &Self) -> Result<Self, i8> {
         // Complex power: z^w = exp(w * ln(z))
         if self.is_complex() || exponent.is_complex() {
             let ln_z = self.ln()?;
@@ -1119,7 +1130,7 @@ impl Float {
         ))
     }
 
-    pub fn pow(&self, exponent: &Self) -> Result<Self, i16> {
+    pub fn pow(&self, exponent: &Self) -> Result<Self, i8> {
         self._pow(exponent).or_else(|_| {
             if float_kind(self) == FloatKind::NaN || float_kind(exponent) == FloatKind::NaN {
                 Err(ERR_INVALID_FORMAT)
@@ -1145,7 +1156,7 @@ impl Float {
         make_float_from_parts(_m, _e, false, k)
     }
 
-    pub fn sin(&self) -> Result<Self, i16> {
+    pub fn sin(&self) -> Result<Self, i8> {
         // Complex sin: sin(a + bi) = sin(a)cosh(b) + i*cos(a)sinh(b)
         if let Float::Complex(real, imag) = self {
             let sin_a = real.sin()?;
@@ -1173,7 +1184,7 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn cos(&self) -> Result<Self, i16> {
+    pub fn cos(&self) -> Result<Self, i8> {
         // Complex cos: cos(a + bi) = cos(a)cosh(b) - i*sin(a)sinh(b)
         if let Float::Complex(real, imag) = self {
             let sin_a = real.sin()?;
@@ -1202,7 +1213,7 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn tan(&self) -> Result<Self, i16> {
+    pub fn tan(&self) -> Result<Self, i8> {
         // Complex tan: tan(z) = sin(z) / cos(z)
         if let Float::Complex(_, _) = self {
             let sin_z = self.sin()?;
@@ -1218,7 +1229,7 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn ln(&self) -> Result<Self, i16> {
+    pub fn ln(&self) -> Result<Self, i8> {
         // Complex ln: ln(a + bi) = ln(|a + bi|) + i*arg(a + bi)
         // where arg(a + bi) = atan2(b, a)
         if let Float::Complex(real, imag) = self {
@@ -1269,7 +1280,7 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn exp(&self) -> Result<Self, i16> {
+    pub fn exp(&self) -> Result<Self, i8> {
         // Complex exp: exp(a + bi) = e^a * (cos(b) + i*sin(b))
         if let Float::Complex(real, imag) = self {
             let exp_a = real.exp()?;
@@ -1290,7 +1301,7 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn log(&self, base: &Float) -> Result<Self, i16> {
+    pub fn log(&self, base: &Float) -> Result<Self, i8> {
         // Complex log with base: log_base(z) = ln(z) / ln(base)
         if self.is_complex() || base.is_complex() {
             let ln_z = self.ln()?;
@@ -1304,7 +1315,7 @@ impl Float {
         ln_self._div(&ln_base)
     }
     
-    pub fn log10(&self) -> Result<Self, i16> {
+    pub fn log10(&self) -> Result<Self, i8> {
         // Complex log base 10: log10(z) = ln(z) / ln(10)
         if let Float::Complex(_, _) = self {
             let ln_z = self.ln()?;
@@ -1320,7 +1331,7 @@ impl Float {
             Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
         }
     }
-    pub fn floor(&self) -> Result<Self, i16> {
+    pub fn floor(&self) -> Result<Self, i8> {
         if self.is_complex() {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -1329,7 +1340,7 @@ impl Float {
         let (rm, re, rneg) = floor_float(m, e, neg)?;
         Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
     }
-    pub fn ceil(&self) -> Result<Self, i16> {
+    pub fn ceil(&self) -> Result<Self, i8> {
         if self.is_complex() {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -1339,7 +1350,7 @@ impl Float {
         Ok(make_float_from_parts(rm, re, rneg, FloatKind::Finite))
     }
 
-    pub fn from_int(int: &Int) -> Result<Self, i16> {
+    pub fn from_int(int: &Int) -> Result<Self, i8> {
         if int_is_nan(int) {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -1474,7 +1485,7 @@ impl Float {
     pub fn from_f64(value: f64) -> Self {
         create_float(&value.to_string())
     }
-    pub fn from_str(value: &str) -> Result<Self, i16> {
+    pub fn from_str(value: &str) -> Result<Self, i8> {
         if value.is_empty() {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -1506,7 +1517,7 @@ impl Float {
         frac_part.chars().all(|c| c == '0')
     }
 
-    pub fn to_int(&self) -> Result<Int, i16> {
+    pub fn to_int(&self) -> Result<Int, i8> {
         if float_to_parts(self).3 == FloatKind::NaN {
             return Err(ERR_INVALID_FORMAT);
         }
@@ -1659,7 +1670,7 @@ macro_rules! impl_from_for_int {
 
             paste! {
                 impl Int {
-                    pub fn [<to_ $t>](&self) -> Result<$t, i16> {
+                    pub fn [<to_ $t>](&self) -> Result<$t, i8> {
                         if int_is_nan(self) {
                             return Err(ERR_INVALID_FORMAT);
                         }
@@ -1711,7 +1722,7 @@ macro_rules! impl_from_for_float {
 
             paste! {
                 impl Float {
-                    pub fn [<to_ $t>](&self) -> Result<$t, i16> {
+                    pub fn [<to_ $t>](&self) -> Result<$t, i8> {
                         match self {
                             Float::NaN => Err(ERR_INVALID_FORMAT),
                             Float::Infinity => Ok($t::INFINITY),

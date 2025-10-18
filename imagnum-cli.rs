@@ -2,6 +2,9 @@ use imagnum::{Float, Int, create_float, create_int, create_complex, create_imagi
 use std::io::{self, Write};
 use std::collections::HashMap;
 
+#[cfg(feature = "random")]
+use imagnum::random::{rand, randint, randfloat, randdecimal, randcomplex, randreal};
+
 #[derive(Debug, Clone)]
 enum Number {
     Int(Int),
@@ -9,7 +12,7 @@ enum Number {
 }
 
 impl Number {
-    fn promote(&self) -> Result<Float, i16> {
+    fn promote(&self) -> Result<Float, i8> {
         match self {
             Number::Int(i) => Ok(create_float(&i.to_string())),
             Number::Float(f) => Ok(f.clone()),
@@ -23,93 +26,93 @@ impl Number {
         }
     }
 
-    fn add(self, other: Number) -> Result<Number, i16> {
+    fn add(self, other: Number) -> Result<Number, i8> {
         match (self, other) {
             (Number::Int(a), Number::Int(b)) => Ok(Number::Int((a + b)?)),
             (a, b) => Ok(Number::Float((a.promote()? + b.promote()?)?)),
         }
     }
 
-    fn sub(self, other: Number) -> Result<Number, i16> {
+    fn sub(self, other: Number) -> Result<Number, i8> {
         match (self, other) {
             (Number::Int(a), Number::Int(b)) => Ok(Number::Int((a - b)?)),
             (a, b) => Ok(Number::Float((a.promote()? - b.promote()?)?)),
         }
     }
 
-    fn mul(self, other: Number) -> Result<Number, i16> {
+    fn mul(self, other: Number) -> Result<Number, i8> {
         match (self, other) {
             (Number::Int(a), Number::Int(b)) => Ok(Number::Int((a * b)?)),
             (a, b) => Ok(Number::Float((a.promote()? * b.promote()?)?)),
         }
     }
 
-    fn div(self, other: Number) -> Result<Number, i16> {
+    fn div(self, other: Number) -> Result<Number, i8> {
         Ok(Number::Float((self.promote()? / other.promote()?)?))
     }
 
-    fn sqrt(self) -> Result<Number, i16> {
+    fn sqrt(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.sqrt()?;
         Ok(Number::Float(res))
     }
 
-    fn pow(self, other: Number) -> Result<Number, i16> {
+    fn pow(self, other: Number) -> Result<Number, i8> {
         match (self, other) {
             (Number::Int(a), Number::Int(b)) => Ok(Number::Int(a.pow(&b)?)),
             (a, b) => Ok(Number::Float(a.promote()?.pow(&b.promote()?)?)),
         }
     }
 
-    fn rem(self, other: Number) -> Result<Number, i16> {
+    fn rem(self, other: Number) -> Result<Number, i8> {
         let f_self = self.promote()?;
         let f_other = other.promote()?;
         Ok(Number::Float((f_self % f_other)?))
     }
 
-    fn round(self, decimals: usize) -> Result<Number, i16> {
+    fn round(self, decimals: usize) -> Result<Number, i8> {
         let f = self.promote()?;
         let rounded = f.round(decimals);
         Ok(Number::Float(rounded))
     }
     
-    fn truncate(self, decimals: usize) -> Result<Number, i16> {
+    fn truncate(self, decimals: usize) -> Result<Number, i8> {
         let f = self.promote()?;
         let truncated = f.truncate(decimals);
         Ok(Number::Float(truncated))
     }
 
-    fn sin(self) -> Result<Number, i16> {
+    fn sin(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.sin()?;
         Ok(Number::Float(res))
     }
 
-    fn cos(self) -> Result<Number, i16> {
+    fn cos(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.cos()?;
         Ok(Number::Float(res))
     }
 
-    fn tan(self) -> Result<Number, i16> {
+    fn tan(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.tan()?;
         Ok(Number::Float(res))
     }
 
-    fn ln(self) -> Result<Number, i16> {
+    fn ln(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.ln()?;
         Ok(Number::Float(res))
     }
 
-    fn exp(self) -> Result<Number, i16> {
+    fn exp(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.exp()?;
         Ok(Number::Float(res))
     }
 
-    fn log(self, base: Number) -> Result<Number, i16> {
+    fn log(self, base: Number) -> Result<Number, i8> {
         let f = self.promote()?;
         let base_f = base.promote()?;
         let res = f.log(&base_f)?;
@@ -123,13 +126,13 @@ impl Number {
         }
     }
 
-    fn floor(self) -> Result<Number, i16> {
+    fn floor(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.floor()?;
         Ok(Number::Float(res))
     }
 
-    fn ceil(self) -> Result<Number, i16> {
+    fn ceil(self) -> Result<Number, i8> {
         let f = self.promote()?;
         let res = f.ceil()?;
         Ok(Number::Float(res))
@@ -167,7 +170,7 @@ impl Number {
     }
 }
 
-fn parse_token(token: &str) -> Result<Number, i16> {
+fn parse_token(token: &str) -> Result<Number, i8> {
     // Handle complex numbers like "3+4i" or "2i"
     if token.ends_with('i') && token.len() > 1 {
         let without_i = &token[..token.len() - 1];
@@ -266,6 +269,17 @@ fn print_help() {
     println!("  trunc(x, n)    Truncate to n decimal places");
     println!("  conj(x)        Complex conjugate");
     println!();
+
+    #[cfg(feature = "random")] {
+        println!("Random Functions:");
+        println!("  rand()                   Random float in [0, 1)");
+        println!("  randint(min, max)        Random integer in [min, max)");
+        println!("  randfloat(min, max)      Random float in [min, max)");
+        println!("  randdecimal(min, max, p) Random decimal in [min, max) with precision p");
+        println!("  randcomplex(min, max)    Random complex number in [min, max)");
+        println!("  randreal(min, max)       Random real number in [min, max)");
+        println!();
+    }
     println!("Number Types:");
     println!("  123            Integer");
     println!("  123.45         Decimal number");
@@ -395,7 +409,7 @@ fn main() {
     }
 }
 
-fn handle_special_functions(input: &str, variables: &HashMap<String, Number>) -> Option<Result<String, i16>> {
+fn handle_special_functions(input: &str, variables: &HashMap<String, Number>) -> Option<Result<String, i8>> {
     let input = input.trim();
     
     // info(x) - show number information
@@ -491,7 +505,7 @@ fn handle_special_functions(input: &str, variables: &HashMap<String, Number>) ->
     None
 }
 
-fn evaluate_expression(expr: &str, variables: &HashMap<String, Number>) -> Result<Number, i16> {
+fn evaluate_expression(expr: &str, variables: &HashMap<String, Number>) -> Result<Number, i8> {
     // Enhanced tokenizer
     fn tokenize(input: &str) -> Vec<String> {
         let mut tokens = Vec::new();
@@ -589,7 +603,7 @@ fn evaluate_expression(expr: &str, variables: &HashMap<String, Number>) -> Resul
 
     let tokens = tokenize(expr);
     if tokens.is_empty() {
-        return Err(-1);
+        return Err(1);
     }
 
     // Handle single tokens
@@ -618,7 +632,7 @@ fn evaluate_expression(expr: &str, variables: &HashMap<String, Number>) -> Resul
     }
 
     // Handle function calls
-    if tokens.len() >= 4 && tokens[1] == "(" && tokens[tokens.len()-1] == ")" {
+    if tokens.len() >= 3 && tokens[1] == "(" && tokens[tokens.len()-1] == ")" {
         let func_name = &tokens[0];
         let args_tokens = &tokens[2..tokens.len()-1];
         
@@ -629,8 +643,7 @@ fn evaluate_expression(expr: &str, variables: &HashMap<String, Number>) -> Resul
     parse_expression_shunting_yard(&tokens, variables)
 }
 
-fn handle_function_call(func_name: &str, args_tokens: &[String], variables: &HashMap<String, Number>) -> Result<Number, i16> {
-    // Split arguments by commas
+fn handle_function_call(func_name: &str, args_tokens: &[String], variables: &HashMap<String, Number>) -> Result<Number, i8> {
     let mut args = Vec::new();
     let mut current_arg = Vec::new();
     let mut paren_count = 0;
@@ -661,60 +674,60 @@ fn handle_function_call(func_name: &str, args_tokens: &[String], variables: &Has
     // Call the appropriate function
     match func_name {
         "sqrt" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().sqrt()
         }
         "abs" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             Ok(eval_args[0].clone().abs())
         }
         "sin" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().sin()
         }
         "cos" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().cos()
         }
         "tan" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().tan()
         }
         "ln" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().ln()
         }
         "exp" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().exp()
         }
         "log" => {
-            if eval_args.len() != 2 { return Err(-1); }
+            if eval_args.len() != 2 { return Err(7); }
             eval_args[0].clone().log(eval_args[1].clone())
         }
         "floor" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().floor()
         }
         "ceil" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             eval_args[0].clone().ceil()
         }
         "round" => {
-            if eval_args.len() != 2 { return Err(-1); }
+            if eval_args.len() != 2 { return Err(7); }
             match &eval_args[1] {
                 Number::Int(decimals) => {
                     if let Some(d) = decimals.to_string().parse::<usize>().ok() {
                         eval_args[0].clone().round(d)
                     } else {
-                        Err(-1)
+                        Err(6)
                     }
                 }
-                _ => Err(-1),
+                _ => Err(6),
             }
         }
         "trunc" => {
-            if eval_args.len() != 2 { return Err(-1); }
+            if eval_args.len() != 2 { return Err(7); }
             match &eval_args[1] {
                 Number::Int(decimals) => {
                     if let Some(d) = decimals.to_string().parse::<usize>().ok() {
@@ -727,14 +740,97 @@ fn handle_function_call(func_name: &str, args_tokens: &[String], variables: &Has
             }
         }
         "conj" => {
-            if eval_args.len() != 1 { return Err(-1); }
+            if eval_args.len() != 1 { return Err(7); }
             Ok(eval_args[0].clone().conj())
+        }
+
+        #[cfg(feature = "random")]
+        "rand" => {
+            if eval_args.len() != 0 { return Err(7); }
+            let rand_flt = rand();
+            Ok(Number::Float(rand_flt))
+        }
+        #[cfg(feature = "random")]
+        "randint" => {
+            if eval_args.len() != 2 { return Err(7); }
+            let min = match &eval_args[0] {
+                Number::Int(i) => i.clone(),
+                _ => return Err(7),
+            };
+            let max = match &eval_args[1] {
+                Number::Int(i) => i.clone(),
+                _ => return Err(7),
+            };
+            let rand_int = randint(&min, &max);
+            Ok(Number::Int(rand_int))
+        }
+        #[cfg(feature = "random")]
+        "randfloat" => {
+            if eval_args.len() != 2 { return Err(7); }
+            let min = match &eval_args[0] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let max = match &eval_args[1] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let rand_flt = randfloat(&min, &max);
+            Ok(Number::Float(rand_flt))
+        }
+        #[cfg(feature = "random")]
+        "randdecimal" => {
+            if eval_args.len() != 3 { return Err(7); }
+            let min = match &eval_args[0] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let max = match &eval_args[1] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let precision = match &eval_args[2] {
+                Number::Int(i) => {
+                    i.to_u64()?
+                }
+                _ => return Err(7),
+            };
+            let rand_dec = randdecimal(&min, &max, precision);
+            Ok(Number::Float(rand_dec))
+        }
+        #[cfg(feature = "random")]
+        "randcomplex" => {
+            if eval_args.len() != 2 { return Err(7); }
+            let min = match &eval_args[0] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let max = match &eval_args[1] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let rand_cplx = randcomplex(&min, &max);
+            Ok(Number::Float(rand_cplx))
+        }
+        #[cfg(feature = "random")]
+        "randreal" => {
+            if eval_args.len() != 2 { return Err(7); }
+            let min = match &eval_args[0] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let max = match &eval_args[1] {
+                Number::Float(f) => f.clone(),
+                _ => return Err(7),
+            };
+            let rand_rl = randreal(&min, &max);
+            Ok(Number::Float(rand_rl))
         }
         _ => Err(-1),
     }
 }
 
-fn parse_expression_shunting_yard(tokens: &[String], variables: &HashMap<String, Number>) -> Result<Number, i16> {
+fn parse_expression_shunting_yard(tokens: &[String], variables: &HashMap<String, Number>) -> Result<Number, i8> {
     let mut output_queue: Vec<String> = Vec::new();
     let mut op_stack: Vec<String> = Vec::new();
 
@@ -783,7 +879,7 @@ fn parse_expression_shunting_yard(tokens: &[String], variables: &HashMap<String,
     for token in output_queue {
         if ["+", "-", "*", "/", "%", "^", "==", "!=", ">", "<", ">=", "<="].contains(&token.as_str()) {
             if eval_stack.len() < 2 {
-                return Err(-1);
+                return Err(7);
             }
             let rhs = eval_stack.pop().unwrap();
             let lhs = eval_stack.pop().unwrap();
@@ -795,7 +891,25 @@ fn parse_expression_shunting_yard(tokens: &[String], variables: &HashMap<String,
                 "/" => lhs.div(rhs)?,
                 "%" => lhs.rem(rhs)?,
                 "^" => lhs.pow(rhs)?,
-                _ => return Err(-1), // Comparison operators not yet implemented
+                op if ["==", "!=", ">", "<", ">=", "<="].contains(&op) => {
+                    let cmp_result = match (lhs.promote()?, rhs.promote()?) {
+                        (a, b) => match op {
+                            "==" => a == b,
+                            "!=" => a != b,
+                            ">"  => a > b,
+                            "<"  => a < b,
+                            ">=" => a >= b,
+                            "<=" => a <= b,
+                            _    => false,
+                        },
+                    };
+                    if cmp_result {
+                        Number::Int(create_int("1"))
+                    } else {
+                        Number::Int(create_int("0"))
+                    }
+                }
+                _ => return Err(-1),
             };
             eval_stack.push(result);
         } else {
@@ -812,7 +926,7 @@ fn parse_expression_shunting_yard(tokens: &[String], variables: &HashMap<String,
     }
 
     if eval_stack.len() != 1 {
-        return Err(-1);
+        return Err(1);
     }
 
     Ok(eval_stack.pop().unwrap())

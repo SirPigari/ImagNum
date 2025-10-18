@@ -6,21 +6,22 @@ use std::str::FromStr;
 
 use num_integer::Integer;
 
-pub const ERR_UNIMPLEMENTED: i16 = -1;
-pub const UNKNOWN_ERROR: i16 = 0;
-pub const ERR_INVALID_FORMAT: i16 = 1;
-pub const ERR_DIV_BY_ZERO: i16 = 2;
-pub const ERR_NEGATIVE_RESULT: i16 = 3;
-pub const ERR_NEGATIVE_SQRT: i16 = 4;
-pub const ERR_NUMBER_TOO_LARGE: i16 = 5;
-pub const ERR_INFINITE_RESULT: i16 = 6;
+pub const ERR_UNIMPLEMENTED: i8 = -1;
+pub const UNKNOWN_ERROR: i8 = 0;
+pub const ERR_INVALID_FORMAT: i8 = 1;
+pub const ERR_DIV_BY_ZERO: i8 = 2;
+pub const ERR_NEGATIVE_RESULT: i8 = 3;
+pub const ERR_NEGATIVE_SQRT: i8 = 4;
+pub const ERR_NUMBER_TOO_LARGE: i8 = 5;
+pub const ERR_INFINITE_RESULT: i8 = 6;
+pub const ERR_WRONG_SYNTAX: i8 = 7;
 
 pub const LN_10: &str = "2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983419677840422862486334095254650828068";
 
-type IntResult<T> = std::result::Result<(T, bool), i16>;
-type FloatResult<T> = std::result::Result<(T, i32, bool), i16>;
+type IntResult<T> = std::result::Result<(T, bool), i8>;
+type FloatResult<T> = std::result::Result<(T, i32, bool), i8>;
 
-fn parse_positive_digits(s: &str) -> Result<BigInt, i16> {
+fn parse_positive_digits(s: &str) -> Result<BigInt, i8> {
     if s.is_empty() {
         return Err(ERR_INVALID_FORMAT);
     }
@@ -255,7 +256,7 @@ fn bigdecimal_nth_root(
     a: &BigDecimal,
     n: u64,
     precision: usize,
-) -> Result<(BigDecimal, bool), i16> {
+) -> Result<(BigDecimal, bool), i8> {
     if *a == BigDecimal::zero() {
         return Ok((BigDecimal::zero(), true));
     }
@@ -327,7 +328,7 @@ pub fn pow_bigdecimal_rational(
     num: &BigInt,
     den: &BigInt,
     precision: usize,
-) -> Result<(BigDecimal, bool), i16> {
+) -> Result<(BigDecimal, bool), i8> {
     let mut numerator = num.clone();
     let denominator = den.clone();
     let neg_exp = numerator.is_negative();
@@ -502,7 +503,7 @@ fn float_from_f64_to_parts(mut v: f64) -> (String, i32, bool) {
     }
 }
 
-pub fn sin_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn sin_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.sin();
@@ -518,7 +519,7 @@ pub fn sin_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool
     Ok((m, e, neg2, true))
 }
 
-pub fn sqrt_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn sqrt_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     if bd.is_negative() {
         return Err(ERR_NEGATIVE_SQRT);
@@ -538,7 +539,7 @@ pub fn sqrt_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, boo
     Ok((m2, e2, neg2, is_irrational))
 }
 
-pub fn cos_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn cos_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.cos();
@@ -548,7 +549,7 @@ pub fn cos_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool
     Ok((m, e, neg2, true))
 }
 
-pub fn tan_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn tan_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.tan();
@@ -561,7 +562,7 @@ pub fn tan_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool
     Ok((m, e, neg2, true))
 }
 
-pub fn ln_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn ln_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     if bd.is_negative() || bd.is_zero() {
         return Err(ERR_INVALID_FORMAT);
@@ -574,7 +575,7 @@ pub fn ln_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool,
     Ok((m, e, neg2, true))
 }
 
-pub fn exp_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn exp_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.exp();
@@ -587,7 +588,7 @@ pub fn exp_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool
     Ok((m, e, neg2, true))
 }
 
-pub fn log10_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn log10_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     if bd.is_negative() || bd.is_zero() {
         return Err(ERR_INVALID_FORMAT);
@@ -600,14 +601,14 @@ pub fn log10_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bo
     Ok((m, e, neg2, true))
 }
 
-pub fn floor_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool), i16> {
+pub fn floor_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     let bi = bd.with_scale(0).to_bigint().unwrap_or(BigInt::from(0));
     let bd_floor = BigDecimal::from(bi.clone());
     Ok(from_bigdecimal(&bd_floor))
 }
 
-pub fn ceil_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool), i16> {
+pub fn ceil_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, neg);
     let bi = bd.with_scale(0).to_bigint().unwrap_or(BigInt::from(0));
     let bd_floor = BigDecimal::from(bi.clone());
@@ -620,12 +621,12 @@ pub fn ceil_float(mant: String, exp: i32, neg: bool) -> Result<(String, i32, boo
     }
 }
 
-pub fn abs_float(mant: String, exp: i32, _neg: bool) -> Result<(String, i32, bool), i16> {
+pub fn abs_float(mant: String, exp: i32, _neg: bool) -> Result<(String, i32, bool), i8> {
     let bd = to_bigdecimal(&mant, exp, false);
     Ok(from_bigdecimal(&bd.abs()))
 }
 
-pub fn sin_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn sin_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&digits, 0, negative);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.sin();
@@ -635,7 +636,7 @@ pub fn sin_int(digits: String, negative: bool) -> Result<(String, i32, bool, boo
     Ok((m, e, neg2, true))
 }
 
-pub fn sqrt_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn sqrt_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&digits, 0, negative);
     if bd.is_negative() {
         return Err(ERR_NEGATIVE_SQRT);
@@ -655,7 +656,7 @@ pub fn sqrt_int(digits: String, negative: bool) -> Result<(String, i32, bool, bo
     Ok((m2, e2, neg2, is_irrational))
 }
 
-pub fn cos_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn cos_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&digits, 0, negative);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.cos();
@@ -665,7 +666,7 @@ pub fn cos_int(digits: String, negative: bool) -> Result<(String, i32, bool, boo
     Ok((m, e, neg2, true))
 }
 
-pub fn tan_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn tan_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&digits, 0, negative);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.tan();
@@ -675,7 +676,7 @@ pub fn tan_int(digits: String, negative: bool) -> Result<(String, i32, bool, boo
     Ok((m, e, neg2, true))
 }
 
-pub fn ln_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn ln_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&digits, 0, negative);
     if bd.is_negative() || bd.is_zero() {
         return Err(ERR_INVALID_FORMAT);
@@ -688,7 +689,7 @@ pub fn ln_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool
     Ok((m, e, neg2, true))
 }
 
-pub fn exp_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i16> {
+pub fn exp_int(digits: String, negative: bool) -> Result<(String, i32, bool, bool), i8> {
     let bd = to_bigdecimal(&digits, 0, negative);
     let f = bd.to_f64().ok_or(ERR_INVALID_FORMAT)?;
     let res = f.exp();
@@ -698,14 +699,14 @@ pub fn exp_int(digits: String, negative: bool) -> Result<(String, i32, bool, boo
     Ok((m, e, neg2, true))
 }
 
-pub fn floor_int(digits: String, negative: bool) -> Result<(String, bool), i16> {
+pub fn floor_int(digits: String, negative: bool) -> Result<(String, bool), i8> {
     Ok((digits, negative))
 }
 
-pub fn ceil_int(digits: String, negative: bool) -> Result<(String, bool), i16> {
+pub fn ceil_int(digits: String, negative: bool) -> Result<(String, bool), i8> {
     Ok((digits, negative))
 }
 
-pub fn abs_int(digits: String, _negative: bool) -> Result<(String, bool), i16> {
+pub fn abs_int(digits: String, _negative: bool) -> Result<(String, bool), i8> {
     Ok((digits, false))
 }

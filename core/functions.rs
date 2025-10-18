@@ -1,7 +1,7 @@
 use crate::foundation::{Float, Int};
 use crate::math::{
     ERR_DIV_BY_ZERO, ERR_INFINITE_RESULT, ERR_INVALID_FORMAT, ERR_NEGATIVE_RESULT,
-    ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_UNIMPLEMENTED,
+    ERR_NEGATIVE_SQRT, ERR_NUMBER_TOO_LARGE, ERR_UNIMPLEMENTED, ERR_WRONG_SYNTAX,
 };
 use crate::foundation::SmallFloat;
 use bigdecimal::BigDecimal;
@@ -205,7 +205,7 @@ pub fn create_complex(real: &str, imag: &str) -> Float {
     Float::Complex(Box::new(real_part), Box::new(imag_part))
 }
 
-pub fn get_error_message(code: i16) -> &'static str {
+pub fn get_error_message(code: i8) -> &'static str {
     match code {
         ERR_INVALID_FORMAT => "Invalid format",
         ERR_DIV_BY_ZERO => "Division by zero",
@@ -214,11 +214,12 @@ pub fn get_error_message(code: i16) -> &'static str {
         ERR_INFINITE_RESULT => "Infinite result",
         ERR_UNIMPLEMENTED => "Operation not implemented",
         ERR_NEGATIVE_SQRT => "Square root of a negative number",
+        ERR_WRONG_SYNTAX => "Syntax error",
         _ => "Unknown error",
     }
 }
 
-pub fn get_error_code(message: &str) -> i16 {
+pub fn get_error_code(message: &str) -> i8 {
     match message.to_lowercase().trim() {
         "invalid format" => ERR_INVALID_FORMAT,
         "division by zero" => ERR_DIV_BY_ZERO,
@@ -227,10 +228,12 @@ pub fn get_error_code(message: &str) -> i16 {
         "infinite result" => ERR_INFINITE_RESULT,
         "operation not implemented" => ERR_UNIMPLEMENTED,
         "square root of a negative number" => ERR_NEGATIVE_SQRT,
+        "syntax error" | "wrong syntax" => ERR_WRONG_SYNTAX,
         _ => 0, // Unknown error
     }
 }
 
+/// Macro to create an Int from a string
 #[macro_export]
 macro_rules! int {
     ($val:expr) => {
@@ -238,6 +241,7 @@ macro_rules! int {
     };
 }
 
+/// Macro to create a Float from a string
 #[macro_export]
 macro_rules! float {
     ($val:expr) => {

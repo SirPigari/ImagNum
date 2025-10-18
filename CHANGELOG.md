@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.26] - 2025-10-18
+
+- Added docs
+- Added `random` and `serde` features
+- Added `cli` feature which is enabled by default
+- Replaced `i16` with `i8` in errors (plan on using an enum in future, this was a fast replace)
+
 ## [0.2.25] - 2025-10-17
 
 - Updated and renamed `simple-repl.rs` to `imagnum-cli.rs`

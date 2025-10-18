@@ -12,7 +12,7 @@ use std::ops::{
 };
 
 impl Add for Int {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn add(self, other: Self) -> Self::Output {
         self._add(&other.clone())
@@ -20,7 +20,7 @@ impl Add for Int {
 }
 
 impl Sub for Int {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn sub(self, other: Self) -> Self::Output {
         self._sub(&other.clone())
@@ -28,7 +28,7 @@ impl Sub for Int {
 }
 
 impl Mul for Int {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn mul(self, other: Self) -> Self::Output {
         self._mul(&other.clone())
@@ -36,7 +36,7 @@ impl Mul for Int {
 }
 
 impl Div for Int {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn div(self, other: Self) -> Self::Output {
         self._div(&other.clone())
@@ -44,7 +44,7 @@ impl Div for Int {
 }
 
 impl Rem for Int {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn rem(self, other: Self) -> Self::Output {
         self._modulo(&other.clone())
@@ -52,105 +52,105 @@ impl Rem for Int {
 }
 
 impl<'a> Add<&'a Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn add(self, other: &'a Int) -> Self::Output {
         self._add(other)
     }
 }
 
 impl<'a> Add<&'a Int> for Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn add(self, other: &'a Int) -> Self::Output {
         self._add(other)
     }
 }
 
 impl<'a> Add<Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn add(self, other: Int) -> Self::Output {
         self._add(&other)
     }
 }
 
 impl<'a> Sub<&'a Int> for Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn sub(self, other: &'a Int) -> Self::Output {
         self._sub(other)
     }
 }
 
 impl<'a> Sub<Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn sub(self, other: Int) -> Self::Output {
         self._sub(&other)
     }
 }
 
 impl<'a> Mul<&'a Int> for Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn mul(self, other: &'a Int) -> Self::Output {
         self._mul(other)
     }
 }
 
 impl<'a> Mul<Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn mul(self, other: Int) -> Self::Output {
         self._mul(&other)
     }
 }
 
 impl<'a> Div<&'a Int> for Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn div(self, other: &'a Int) -> Self::Output {
         self._div(other)
     }
 }
 
 impl<'a> Div<Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn div(self, other: Int) -> Self::Output {
         self._div(&other)
     }
 }
 
 impl<'a> Rem<&'a Int> for Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn rem(self, other: &'a Int) -> Self::Output {
         self._modulo(other)
     }
 }
 
 impl<'a> Rem<Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn rem(self, other: Int) -> Self::Output {
         self._modulo(&other)
     }
 }
 
 impl<'a> Sub<&'a Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn sub(self, other: &'a Int) -> Self::Output {
         self._sub(other)
     }
 }
 
 impl<'a> Mul<&'a Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn mul(self, other: &'a Int) -> Self::Output {
         self._mul(other)
     }
 }
 
 impl<'a> Div<&'a Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn div(self, other: &'a Int) -> Self::Output {
         self._div(other)
     }
 }
 
 impl<'a> Rem<&'a Int> for &'a Int {
-    type Output = Result<Int, i16>;
+    type Output = Result<Int, i8>;
     fn rem(self, other: &'a Int) -> Self::Output {
         self._modulo(other)
     }
@@ -252,7 +252,7 @@ impl Display for Int {
 }
 
 impl Add for Float {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn add(self, other: Self) -> Self::Output {
         self._add(&other.clone())
@@ -260,7 +260,7 @@ impl Add for Float {
 }
 
 impl Sub for Float {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn sub(self, other: Self) -> Self::Output {
         self._sub(&other.clone())
@@ -268,7 +268,7 @@ impl Sub for Float {
 }
 
 impl Mul for Float {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn mul(self, other: Self) -> Self::Output {
         self._mul(&other.clone())
@@ -276,7 +276,7 @@ impl Mul for Float {
 }
 
 impl Div for Float {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn div(self, other: Self) -> Self::Output {
         self._div(&other.clone())
@@ -284,7 +284,7 @@ impl Div for Float {
 }
 
 impl Rem for Float {
-    type Output = Result<Self, i16>;
+    type Output = Result<Self, i8>;
 
     fn rem(self, other: Self) -> Self::Output {
         self._modulo(&other.clone())
@@ -292,105 +292,105 @@ impl Rem for Float {
 }
 
 impl<'a> Add<&'a Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn add(self, other: &'a Float) -> Self::Output {
         self._add(other)
     }
 }
 
 impl<'a> Sub<&'a Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn sub(self, other: &'a Float) -> Self::Output {
         self._sub(other)
     }
 }
 
 impl<'a> Mul<&'a Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn mul(self, other: &'a Float) -> Self::Output {
         self._mul(other)
     }
 }
 
 impl<'a> Div<&'a Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn div(self, other: &'a Float) -> Self::Output {
         self._div(other)
     }
 }
 
 impl<'a> Rem<&'a Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn rem(self, other: &'a Float) -> Self::Output {
         self._modulo(other)
     }
 }
 
 impl<'a> Add<&'a Float> for Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn add(self, other: &'a Float) -> Self::Output {
         self._add(other)
     }
 }
 
 impl<'a> Add<Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn add(self, other: Float) -> Self::Output {
         self._add(&other)
     }
 }
 
 impl<'a> Sub<&'a Float> for Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn sub(self, other: &'a Float) -> Self::Output {
         self._sub(other)
     }
 }
 
 impl<'a> Sub<Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn sub(self, other: Float) -> Self::Output {
         self._sub(&other)
     }
 }
 
 impl<'a> Mul<&'a Float> for Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn mul(self, other: &'a Float) -> Self::Output {
         self._mul(other)
     }
 }
 
 impl<'a> Mul<Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn mul(self, other: Float) -> Self::Output {
         self._mul(&other)
     }
 }
 
 impl<'a> Div<&'a Float> for Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn div(self, other: &'a Float) -> Self::Output {
         self._div(other)
     }
 }
 
 impl<'a> Div<Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn div(self, other: Float) -> Self::Output {
         self._div(&other)
     }
 }
 
 impl<'a> Rem<&'a Float> for Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn rem(self, other: &'a Float) -> Self::Output {
         self._modulo(other)
     }
 }
 
 impl<'a> Rem<Float> for &'a Float {
-    type Output = Result<Float, i16>;
+    type Output = Result<Float, i8>;
     fn rem(self, other: Float) -> Self::Output {
         self._modulo(&other)
     }

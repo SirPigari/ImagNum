@@ -1,6 +1,13 @@
 use imagnum::{Float, Int, create_float, create_int};
 
 #[test]
+fn test_features() {
+    assert!(imagnum::ENABLED_FEATURES.contains(&"serde"));
+    assert!(imagnum::ENABLED_FEATURES.contains(&"random"));
+    assert!(imagnum::ENABLED_FEATURES.contains(&"cli"));
+}
+
+#[test]
 fn test_int_arithmetic_and_pow() {
     let a = create_int("123");
     let b = create_int("456");
