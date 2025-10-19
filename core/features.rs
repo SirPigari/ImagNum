@@ -84,6 +84,7 @@ pub mod feature_serde {
 }
 
 #[cfg(feature = "random")]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod feature_rand {
     use rand::{Rng, RngCore};
     use super::*;

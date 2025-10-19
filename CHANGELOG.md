@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.27] - 2025-10-19
+
+- Bugfix: Removed random module on `wasm32`
+
 ## [0.2.26] - 2025-10-18
 
 - Added docs
