@@ -70,6 +70,7 @@ pub mod errors {
 }
 
 #[cfg(feature = "random")]
+#[cfg(not(target_arch = "wasm32"))]
 #[doc = "Random number generation features (enabled with `features = [\"random\"]`)"]
 pub mod random {
     pub use super::features::feature_rand::*;
