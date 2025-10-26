@@ -1716,7 +1716,7 @@ macro_rules! impl_from_for_float {
         $(
             impl From<$t> for Float {
                 fn from(value: $t) -> Self {
-                    create_float(&value.to_string())
+                    value.into_small_float()
                 }
             }
 

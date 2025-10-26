@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.29] - 2025-10-26
+
+- Added Bitwise operators:
+  - BitAnd `&`
+  - BitOr `|`
+  - BitXor `^`
+  - BitNot `!` (different from Neg)
+  - Left Bit Shift `<<`
+  - Right Bit Shift `>>`
+
 ## [0.2.28] - 2025-10-19
 
 - Bugfix: Fixed issue with random on `wasm32`
